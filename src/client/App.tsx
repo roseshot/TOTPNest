@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from 'react'
 import jsQR from 'jsqr'
 import { ApiFailure, copyText, request } from './api'
 import { CodePanel } from './CodePanel'
@@ -42,14 +42,20 @@ async function importQr(file: File): Promise<EntryDraft> {
 }
 
 function SharePage({ id }: { id: string }) {
-  useEffect(() => { document.title = 'Code' }, [])
-  const token = useMemo(() => new URLSearchParams(window.location.hash.slice(1)).get('token') || '', [])
+  useEffect(() => {
+    document.title = 'Code'
+    // Older links may contain a token fragment; never retain it in the address bar.
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }, [])
   const storageKey = 'totpnest-unlock:' + id
   const [unlock, setUnlock] = useState(() => sessionStorage.getItem(storageKey) || '')
   const [passwordRequired, setPasswordRequired] = useState(false)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [locked, setLocked] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
 
   const onFeedError = useCallback((failure: ApiFailure) => {
@@ -74,11 +80,12 @@ function SharePage({ id }: { id: string }) {
       setPasswordRequired(false)
       setPassword('')
     } catch (cause) {
+      if (cause instanceof ApiFailure && cause.code === 'LOCKED') setLocked(true)
       setError(message(cause))
     } finally { setBusy(false) }
   }
 
-  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || unavailable) {
+  if (!/^(?:[A-Za-z0-9]{22}|[0-9a-f]{32})$/.test(id) || unavailable) {
     return <main className="share-shell"><div className="card center">
       <h2>Link unavailable</h2><p className="muted">This link does not exist, has expired, or was revoked.</p>
     </div></main>
@@ -88,9 +95,9 @@ function SharePage({ id }: { id: string }) {
       <h2>Enter share password</h2>
       <input autoFocus type="password" aria-label="Share password" autoComplete="off" value={password}
         onChange={(event) => setPassword(event.target.value)} required placeholder="Access password" />
-      <button type="submit" className="primary" disabled={busy || !password}>{busy ? 'Verifying...' : 'Unlock'}</button>
+      <button type="submit" className="primary" disabled={busy || locked || !password}>{busy ? 'Verifying...' : locked ? 'Temporarily locked' : 'Unlock'}</button>
       {error && <p className="message error" role="alert">{error}</p>}
-    </form> : <CodePanel endpoint={'/api/share/' + id} token={token} unlock={unlock || undefined}
+    </form> : <CodePanel endpoint={'/api/share/' + id} unlock={unlock || undefined}
       onAuthError={onFeedError} />}
   </main>
 }
@@ -401,6 +408,6 @@ function AdminApp() {
 }
 
 export function App() {
-  const match = /^\/s\/([0-9a-f-]{36})\/?$/i.exec(window.location.pathname)
+  const match = /^\/s\/([^/]+)\/?$/.exec(window.location.pathname)
   return match ? <SharePage id={match[1]} /> : <AdminApp />
 }

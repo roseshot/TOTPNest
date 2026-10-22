@@ -72,23 +72,24 @@ export async function sharePasswordHash(master: string, shareId: string, passwor
   )))
 }
 
-/** 15-minute stateless, revocable-by-share unlock ticket, bound to bearer token. */
-export async function issueUnlock(master: string, shareId: string, tokenHash: string, now: number): Promise<string> {
+/** A 15-minute signed unlock ticket scoped to one secret Share ID. */
+export async function issueUnlock(master: string, shareId: string, now: number): Promise<string> {
   const exp = now + 15 * 60_000
-  const key = await signKey(master, 'share-unlock-v1')
-  const signature = await crypto.subtle.sign('HMAC', key, utf8(shareId + '|' + tokenHash + '|' + exp))
+  const key = await signKey(master, 'share-unlock-v2')
+  const signature = await crypto.subtle.sign('HMAC', key, utf8(shareId + '|' + exp))
   return exp + '.' + base64url(new Uint8Array(signature))
 }
 
 export async function verifyUnlock(
-  master: string, shareId: string, tokenHash: string, ticket: string, now: number
+  master: string, shareId: string, ticket: string, now: number
 ): Promise<boolean> {
   const match = /^(\d{13})\.([A-Za-z0-9_-]{43})$/.exec(ticket)
   if (!match) return false
   const exp = Number(match[1])
   if (exp <= now || exp > now + 15 * 60_000) return false
-  const key = await signKey(master, 'share-unlock-v1')
+  const key = await signKey(master, 'share-unlock-v2')
   return crypto.subtle.verify(
-    'HMAC', key, unbase64url(match[2]), utf8(shareId + '|' + tokenHash + '|' + exp)
+    'HMAC', key, unbase64url(match[2]), utf8(shareId + '|' + exp)
   )
+
 }

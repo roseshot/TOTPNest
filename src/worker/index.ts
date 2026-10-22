@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 import { BOOKMARK_HEADER, openSession, type DbSession } from './db'
 import { JsonBodyError, readJsonObject } from './json'
+import { clearFailures, lockedUntil, recordFailure, PASSWORD_FAILURE_POLICY, SHARE_ID_FAILURE_POLICY, type FailurePolicy } from './abuse'
+import { isShareId, newShareId } from './share-id'
 import type { Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { constantTimeEqual, decrypt, encrypt, issueUnlock, randomToken, sha256, sharePasswordHash, unbase64url, verifyUnlock } from './crypto'
@@ -14,7 +16,7 @@ type Entry = {
   secret_nonce: string; secret_ciphertext: string; created_at: number; updated_at: number
 }
 type Share = {
-  id: string; entry_id: string; token_hash: string; token_nonce: string; token_ciphertext: string;
+  id: string; public_id: string; entry_id: string;
   password_hash: string | null; note: string; expires_at: number | null;
   revoked_at: number | null; created_at: number
 }
@@ -22,7 +24,8 @@ type EntrySummary = Pick<Entry, 'id' | 'issuer' | 'account' | 'algorithm' | 'dig
 type EntryInput = { issuer: string; account: string; algorithm: TotpAlgorithm; digits: 6 | 8; period: number; secret?: string }
 
 class ApiError extends Error {
-  constructor(public status: number, message: string, public code = 'ERROR') { super(message) }
+  constructor(public status: number, message: string, public code = 'ERROR',
+    public retryAfterSeconds?: number) { super(message) }
 }
 const app = new Hono<Environment>()
 const MIN_PASSWORD_LENGTH = 16
@@ -39,11 +42,6 @@ function requireConfig(c: Ctx) {
 }
 function cookieName(c: Ctx) {
   return new URL(c.req.url).protocol === 'https:' ? '__Host-totpnest' : 'totpnest_local'
-}
-function bearer(c: Ctx): string {
-  const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(c.req.header('Authorization') ?? '')
-  if (!match) throw new ApiError(404, 'Link unavailable')
-  return match[1]
 }
 async function jsonBody(c: Ctx): Promise<Record<string, unknown>> {
   try { return await readJsonObject(c.req.raw) }
@@ -116,29 +114,42 @@ async function rateLimit(c: Ctx, name: string, limit: number, windowMs: number) 
 async function visitorIp(c: Ctx): Promise<string> {
   return sha256(c.req.header('CF-Connecting-IP') || 'unknown')
 }
-async function requirePublicCodeRateLimit(c: Ctx) {
-  const id = c.req.param('id') || ''
-  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new ApiError(404, 'Link unavailable', 'SHARE_UNAVAILABLE')
-  // This fast, approximate per-location limit protects D1 reads; password attempts remain D1-limited.
-  const { success } = await c.env.PUBLIC_CODE_RATE_LIMITER.limit({ key: id + ':' + await visitorIp(c) })
-  if (!success) throw new ApiError(429, 'Too many requests. Please try again later', 'RATE_LIMIT')
+function blocked(until: number): ApiError {
+  const wait = Math.max(1, Math.ceil((until - Date.now()) / 1000))
+  return new ApiError(429, 'Too many failed attempts. Access is temporarily locked', 'LOCKED', wait)
 }
-async function getShare(c: Ctx): Promise<{ share: Share; tokenHash: string }> {
-  const token = bearer(c)
-  const row = await c.var.db.prepare('SELECT * FROM shares WHERE id = ?')
-    .bind(c.req.param('id')).first<Share>()
+async function assertNotLocked(c: Ctx, key: string, policy: FailurePolicy) {
+  const until = await lockedUntil(c.var.db, key, policy)
+  if (until !== null) throw blocked(until)
+}
+async function requirePublicRateLimit(c: Ctx) {
+  // Scope to the visitor, not to the requested ID: rotating guessed IDs cannot
+  // bypass this approximate, per-location protection for D1.
+  const { success } = await c.env.PUBLIC_CODE_RATE_LIMITER.limit({
+    key: 'share-visitor:' + await visitorIp(c)
+  })
+  if (!success) throw new ApiError(429, 'Too many requests. Please try again later', 'RATE_LIMIT', 60)
+}
+async function getShare(c: Ctx): Promise<Share> {
+  const failuresKey = 'share-id-miss:' + await visitorIp(c)
+  await assertNotLocked(c, failuresKey, SHARE_ID_FAILURE_POLICY)
+  const id = c.req.param('id') || ''
+  const row = isShareId(id)
+    ? await c.var.db.prepare('SELECT * FROM shares WHERE public_id = ?').bind(id).first<Share>()
+    : null
   const now = Date.now()
   if (!row || row.revoked_at !== null || row.expires_at !== null && row.expires_at <= now) {
-    throw new ApiError(404, 'Share link has expired or been revoked', 'SHARE_UNAVAILABLE')
+    const until = await recordFailure(c.var.db, failuresKey, SHARE_ID_FAILURE_POLICY, now)
+    if (until !== null) throw blocked(until)
+    throw new ApiError(404, 'Share link is unavailable', 'SHARE_UNAVAILABLE')
   }
-  const hash = await sha256(token)
-  if (!constantTimeEqual(hash, row.token_hash)) throw new ApiError(404, 'Link unavailable', 'SHARE_UNAVAILABLE')
-  return { share: row, tokenHash: hash }
+  return row
 }
-async function requireUnlocked(c: Ctx, share: Share, tokenHash: string) {
+async function requireUnlocked(c: Ctx, share: Share) {
   if (!share.password_hash) return
+  await assertNotLocked(c, 'share-password-fail:' + await visitorIp(c), PASSWORD_FAILURE_POLICY)
   const ticket = c.req.header('X-Share-Unlock') || ''
-  if (!await verifyUnlock(c.env.DATA_ENCRYPTION_KEY, share.id, tokenHash, ticket, Date.now())) {
+  if (!await verifyUnlock(c.env.DATA_ENCRYPTION_KEY, share.id, ticket, Date.now())) {
     throw new ApiError(401, 'Share password required', 'PASSWORD_REQUIRED')
   }
 }
@@ -201,21 +212,24 @@ app.get('/api/admin/session', async (c) => c.json({ authenticated: await getAdmi
 app.post('/api/admin/login', async (c) => {
   requireConfig(c)
   const ip = await visitorIp(c)
-  await rateLimit(c, 'login-ip:' + ip, 10, 15 * 60_000)
+  const failuresKey = 'admin-password-fail:' + ip
+  await assertNotLocked(c, failuresKey, PASSWORD_FAILURE_POLICY)
   await rateLimit(c, 'login-global', 100, 15 * 60_000)
   const body = await jsonBody(c)
   const password = body.password
   if (typeof password !== 'string' || password.length > 1024 ||
       !constantTimeEqual(await sha256(password), await sha256(c.env.ADMIN_PASSWORD))) {
+    const until = await recordFailure(c.var.db, failuresKey, PASSWORD_FAILURE_POLICY)
+    if (until !== null) throw blocked(until)
     throw new ApiError(401, 'Incorrect admin password', 'LOGIN_FAILED')
   }
+  await clearFailures(c.var.db, failuresKey)
   const now = Date.now()
   const token = randomToken()
   await c.var.db.batch([
     c.var.db.prepare('INSERT INTO sessions (token_hash,expires_at,created_at) VALUES (?,?,?)')
       .bind(await sessionHash(token, c.env.ADMIN_PASSWORD), now + SESSION_MS, now),
-    c.var.db.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(now),
-    c.var.db.prepare('DELETE FROM rate_limits WHERE key IN (?,?)').bind('login-ip:' + ip, 'login-global')
+    c.var.db.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(now)
   ])
   setCookie(c, cookieName(c), token, {
     httpOnly: true, secure: new URL(c.req.url).protocol === 'https:',
@@ -301,26 +315,27 @@ app.post('/api/admin/shares', async (c) => {
     rawPassword.length < 8 || rawPassword.length > 128)) {
     throw new ApiError(400, 'Share password must be 8-128 characters long')
   }
-  const id = crypto.randomUUID(), now = Date.now(), token = randomToken()
-  const box = await encrypt(token, c.env.DATA_ENCRYPTION_KEY, 'share-token:' + id + ':v1')
+  const id = newShareId(), now = Date.now()
   const passwordHash = typeof rawPassword === 'string'
     ? await sharePasswordHash(c.env.DATA_ENCRYPTION_KEY, id, rawPassword) : null
   const expiresAt = hours === 0 ? null : now + hours * 3_600_000
+  // Legacy columns remain until a later cleanup migration, but new links have no token.
+  const unusedTokenHash = await sha256('id-only-share-v2\0' + id)
   await c.var.db.prepare(`INSERT INTO shares
-    (id,entry_id,token_hash,token_nonce,token_ciphertext,password_hash,note,expires_at,revoked_at,created_at)
-    VALUES (?,?,?,?,?,?,?,?,NULL,?)`)
-    .bind(id, body.entryId, await sha256(token), box.nonce, box.ciphertext,
+    (id,public_id,entry_id,token_hash,token_nonce,token_ciphertext,password_hash,note,expires_at,revoked_at,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,NULL,?)`)
+    .bind(id, id, body.entryId, unusedTokenHash, '', '',
       passwordHash, note, expiresAt, now).run()
-  return c.json({ id, url: new URL('/s/' + id + '#token=' + token, c.req.url).toString() }, 201)
+  return c.json({ id, url: new URL('/s/' + id, c.req.url).toString() }, 201)
 })
 app.get('/api/admin/shares/:id/link', async (c) => {
-  requireConfig(c)
-  const row = await c.var.db.prepare('SELECT * FROM shares WHERE id=?')
-    .bind(c.req.param('id')).first<Share>()
-  if (!row || row.revoked_at !== null) throw new ApiError(404, 'Share not found or revoked')
-  const token = await decrypt(row.token_nonce, row.token_ciphertext,
-    c.env.DATA_ENCRYPTION_KEY, 'share-token:' + row.id + ':v1')
-  return c.json({ url: new URL('/s/' + row.id + '#token=' + token, c.req.url).toString() })
+  const row = await c.var.db.prepare('SELECT public_id,revoked_at,expires_at FROM shares WHERE id=?')
+    .bind(c.req.param('id')).first<Pick<Share, 'public_id' | 'revoked_at' | 'expires_at'>>()
+  if (!row || !row.public_id || row.revoked_at !== null ||
+      row.expires_at !== null && row.expires_at <= Date.now()) {
+    throw new ApiError(404, 'Share not found, expired, or revoked')
+  }
+  return c.json({ url: new URL('/s/' + row.public_id, c.req.url).toString() })
 })
 app.delete('/api/admin/shares/:id', async (c) => {
   await c.var.db.prepare('UPDATE shares SET revoked_at=? WHERE id=? AND revoked_at IS NULL')
@@ -330,30 +345,36 @@ app.delete('/api/admin/shares/:id', async (c) => {
 
 app.post('/api/share/:id/unlock', async (c) => {
   requireConfig(c)
-  const { share, tokenHash } = await getShare(c)
+  await requirePublicRateLimit(c)
+  const share = await getShare(c)
   if (!share.password_hash) return c.json({ unlocked: true })
-  const ip = await visitorIp(c)
-  await rateLimit(c, 'unlock-ip:' + share.id + ':' + ip, 8, 15 * 60_000)
+  const failuresKey = 'share-password-fail:' + await visitorIp(c)
+  await assertNotLocked(c, failuresKey, PASSWORD_FAILURE_POLICY)
   await rateLimit(c, 'unlock-share:' + share.id, 100, 15 * 60_000)
   const body = await jsonBody(c)
   if (typeof body.password !== 'string' || body.password.length > 128 ||
-    !constantTimeEqual(await sharePasswordHash(c.env.DATA_ENCRYPTION_KEY, share.id, body.password),
-      share.password_hash)) throw new ApiError(401, 'Incorrect share password', 'BAD_SHARE_PASSWORD')
-  const ticket = await issueUnlock(c.env.DATA_ENCRYPTION_KEY, share.id, tokenHash, Date.now())
+    !constantTimeEqual(await sharePasswordHash(c.env.DATA_ENCRYPTION_KEY, share.id,
+      body.password), share.password_hash)) {
+    const until = await recordFailure(c.var.db, failuresKey, PASSWORD_FAILURE_POLICY)
+    if (until !== null) throw blocked(until)
+    throw new ApiError(401, 'Incorrect share password', 'BAD_SHARE_PASSWORD')
+  }
+  await clearFailures(c.var.db, failuresKey)
+  const ticket = await issueUnlock(c.env.DATA_ENCRYPTION_KEY, share.id, Date.now())
   return c.json({ unlockToken: ticket })
 })
 app.post('/api/share/:id/code', async (c) => {
   requireConfig(c)
-  await requirePublicCodeRateLimit(c)
-  const { share, tokenHash } = await getShare(c)
-  await requireUnlocked(c, share, tokenHash)
+  await requirePublicRateLimit(c)
+  const share = await getShare(c)
+  await requireUnlocked(c, share)
   return codeFor(c, await getEntry(c, share.entry_id))
 })
 app.post('/api/share/:id/next', async (c) => {
   requireConfig(c)
-  await requirePublicCodeRateLimit(c)
-  const { share, tokenHash } = await getShare(c)
-  await requireUnlocked(c, share, tokenHash)
+  await requirePublicRateLimit(c)
+  const share = await getShare(c)
+  await requireUnlocked(c, share)
   return codeFor(c, await getEntry(c, share.entry_id), true)
 })
 
@@ -365,7 +386,9 @@ app.onError((error, c) => {
     status, headers: { 'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store, private', 'Pragma': 'no-cache',
       'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
-      'X-Robots-Tag': 'noindex, nofollow' }
+      'X-Robots-Tag': 'noindex, nofollow',
+      ...(error instanceof ApiError && error.retryAfterSeconds
+        ? { 'Retry-After': String(error.retryAfterSeconds) } : {}) }
   })
 })
 app.notFound((c) => c.json({ error: 'Endpoint not found' }, 404))

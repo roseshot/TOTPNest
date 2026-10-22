@@ -10,13 +10,16 @@ A **browser-only, single-administrator TOTP manager** built on Cloudflare Worker
 - Import an `otpauth://totp/...` link or upload a QR code image. QR recognition runs in the browser; images are not uploaded.
 - TOTP secrets are encrypted with AES-256-GCM by the Worker before being written to D1.
 - Create multiple share links per TOTP entry, with separate expiration dates and revocation controls.
+- Share URLs use a 22-character case-sensitive Base62 ID with approximately 131 bits of randomness, without a separate URL token.
 - **Public links:** anyone holding the URL can view the shared code.
 - **Password-protected links:** recipients must also enter a dedicated share password. No guest sign-up is required.
 - The share page **never shows issuer, service, or account details**. It displays the code, copy control, status, countdown, and progress bar.
 - The initial request fetches only the **current code**. The page requests the **next code** only during the **final five seconds** of the current period.
 - The next code is visibly marked as **not yet active**, and the copy button always copies the currently valid code.
 - The browser updates the countdown locally; no per-second API polling or WebSocket is required.
-- Share-code endpoints have a Cloudflare-native rate limit to reduce abusive D1 reads without using D1 writes for each code view.
+- Share-code and unlock endpoints have a Cloudflare-native rate limit to reduce abusive D1 reads without writing to D1 on each successful code view.
+- After five incorrect admin or share-password attempts from a visitor IP within 30 minutes, block that visitor for 30 minutes.
+- After ten unavailable share ID requests from a visitor IP within 24 hours, block that visitor from share access for 24 hours.
 
 ## Stack
 
@@ -72,7 +75,7 @@ Under **Build variables and secrets** for the production build, add both variabl
 
 The committed `wrangler.jsonc` deliberately contains placeholders for both fields. `npm run prepare:wrangler` validates the build variables and writes `wrangler.generated.jsonc` at the repository root. Wrangler deploys using only this generated configuration, which is gitignored. Missing or invalid build variables stop deployment before Wrangler starts. `npm run check` uses the placeholder template solely for a dry-run build, so GitHub Actions does not require access to production database identifiers.
 
-**Set the deploy command exactly as shown.** Cloudflare's default `npx wrangler deploy` does not use the generated configuration and must not be used for this setup. When Builds are enabled, each push to `main` triggers the configured build and deployment; GitHub Actions independently validates the code but does not deploy.
+**Set the deploy command exactly as shown.** The `deploy:worker` script applies pending D1 migrations before deploying the Worker. Cloudflare's default `npx wrangler deploy` skips this project's generated configuration and migration step, so it must not be used for this setup. When Builds are enabled, each push to `main` triggers the configured build and deployment; GitHub Actions independently validates the code but does not deploy.
 
 Build variables are not Worker runtime secrets. Configure `ADMIN_PASSWORD` and `DATA_ENCRYPTION_KEY` separately in **Worker Settings > Variables and Secrets**, as secret values. The application's D1 binding remains `DB`; do not put the D1 UUID in a Worker runtime `vars` binding.
 
@@ -96,7 +99,7 @@ export D1_DATABASE_ID="your-existing-d1-database-uuid"
 npm run db:migrate:remote
 ```
 
-Apply the remote migration before serving the application with real accounts. This operation is **not** included in automatic deployments; review and apply new migrations deliberately.
+Automatic deployment applies pending remote migrations before updating the Worker. Review migrations before pushing to `main` and back up the production database first. The additive share-ID migration preserves existing entry secrets and share records, but rotates previous public links. If database migration fails, the Worker deployment stops.
 
 Set two independent **Worker Secrets** in the Cloudflare dashboard or, when using the CLI, with the generated configuration:
 
@@ -151,12 +154,12 @@ Wrangler serves the built application at `http://127.0.0.1:8787` by default. Re-
 
 1. Sign in as the administrator and select a TOTP entry.
 2. Choose **Share**, optionally require an access password, choose an expiration period, and add a private admin note.
-3. Send the generated link to the recipient. A link contains a random 256-bit bearer token in its URL fragment.
+3. Send the generated link to the recipient. Its path contains a case-sensitive, cryptographically random 22-character Base62 share ID; no URL token is needed.
 4. The recipient opens the link. A password prompt is shown only for password-protected shares.
 5. The page receives the current code from the Worker. Only in the final five seconds of the period does it request the next code.
 6. Revoking a link or reaching its expiration stops further code requests.
 
-The Worker checks share-token authorization, password-unlock tickets (when applicable), expiration, and revocation **on every code request**. Share pages and visitor APIs do not return issuer, account, or TOTP secret.
+The Worker checks share-ID existence, password-unlock tickets (when applicable), expiration, revocation, and visitor lockouts **on every code request**. Share pages and visitor APIs do not return issuer, account, or TOTP secret.
 
 A next code preview may **not be accepted** by the target service before its time window starts. The copy button continues to copy the current valid code.
 
@@ -165,15 +168,23 @@ A next code preview may **not be accepted** by the target service before its tim
 - The Worker **can decrypt TOTP secrets**, so this is **not an end-to-end encrypted or zero-knowledge vault**. Compromise of the Worker, its deployment access, or its encryption secret may expose TOTP secrets.
 - `ADMIN_PASSWORD` is held as a Worker Secret, not in D1. Administrator sessions use random 256-bit tokens; D1 contains only session hashes. Session cookies use `HttpOnly; Secure; SameSite=Strict` on HTTPS.
 - Updating `ADMIN_PASSWORD` invalidates prior admin sessions because the stored session verifier is bound to the configured password.
-- Share tokens are 256-bit random values. Their hashes are stored in D1; an AES-GCM-encrypted copy is retained so the administrator can copy an active link again.
+- Share IDs are 22 random Base62 characters (approximately 131 bits of entropy). Possession of the ID grants access to an unprotected share, so keep complete URLs private. The ID is stored in D1; a D1 data breach can expose active share links. There is no independent URL token.
 - Protected-share passwords use a purpose-separated, keyed HMAC verifier derived from the Worker encryption secret. Each share has a distinct identifier. Worker and D1 rate limits discourage online guessing; **use a strong share password**.
-- Successful password unlocks issue a short-lived 15-minute ticket bound to the share and its bearer token. The browser keeps the ticket in session storage only.
+- Successful password unlocks issue a short-lived 15-minute HMAC-signed ticket bound to the share ID. The browser keeps the ticket in session storage only.
 - APIs check request origin, avoid cross-origin access, stream and cap JSON request bodies at 8 KiB, and disable caching.
-- The Cloudflare rate-limiting binding caps share-code traffic at approximately 120 requests per minute per share and visitor IP, per Cloudflare location. Limits are approximate rather than globally strict; the existing D1-backed password-attempt limits remain authoritative. Configure edge security rules for additional abuse protection.
+- The Cloudflare rate-limiting binding caps combined share-code and unlock traffic at approximately 120 requests per minute per visitor IP, per Cloudflare location. Limits are approximate rather than globally strict. D1-backed failure counters use primary-first sessions and enforce 5 incorrect admin/share-password attempts per 30-minute window (30-minute lockout) and 10 unavailable share ID requests per 24-hour window (24-hour lockout). Locks are scoped to the visitor IP, not the whole account or share; users behind shared IPs may still be affected, and attackers using many IPs can spread attempts across visitors. Configure edge security rules for additional protection.
 - QR imports are limited to 10 MiB files and 20-megapixel images. TOTP imports require canonical Base32 lengths and padding bits. Static assets include a content security policy, no-referrer policy, and search-indexing restrictions.
 - **Revocation cannot invalidate codes already delivered.** Replacing a compromised TOTP secret requires reconfiguring 2FA at the underlying service.
 - There is no offline code generation; if the Worker or its dependencies are unavailable, fresh codes cannot be retrieved.
 - The Free plan has resource and CPU limits. For significant public-sharing traffic, apply additional edge-level access rules.
+
+## Share ID migration and compatibility
+
+Migration `0002_share_ids.sql` adds a unique public ID to every share without deleting existing entries, shares, or their password verifiers. Existing shares receive a new 32-character, 128-bit random hexadecimal ID; new shares use the shorter 22-character Base62 format.
+
+**All URLs created before this change are invalidated.** Previously shared UUID + fragment-token links must be replaced using the admin dashboard's **Copy link** action. Revocation and expiration metadata are preserved. The legacy token columns remain in D1 temporarily for a backward-compatible database rollout; the new application never uses these token values to authorize visitors. Do not share a URL containing an obsolete `#token=` fragment.
+
+The new URL is a bearer capability: anyone knowing the share ID can access an unprotected share. Password-protect sensitive shares, use short expirations, and rotate or revoke compromised links.
 
 ## Backup and recovery
 
@@ -196,7 +207,7 @@ Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing en
 npm run check
 ```
 
-The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
 
 ## API overview
 
@@ -212,9 +223,9 @@ The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 ca
 | GET / POST | `/api/admin/shares` | Authenticated admin |
 | GET | `/api/admin/shares/:id/link` | Authenticated admin |
 | DELETE | `/api/admin/shares/:id` | Authenticated admin |
-| POST | `/api/share/:id/unlock` | Bearer token and share password |
-| POST | `/api/share/:id/code` | Bearer token; unlock ticket when protected |
-| POST | `/api/share/:id/next` | Same authorization; final 5 seconds |
+| POST | `/api/share/:id/unlock` | Valid share ID and share password |
+| POST | `/api/share/:id/code` | Valid share ID; unlock ticket when protected |
+| POST | `/api/share/:id/next` | Valid share ID and unlock ticket when protected; final 5 seconds |
 
 Clients cannot select arbitrary timestamps to retrieve unlimited future codes.
 

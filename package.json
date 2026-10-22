@@ -15,7 +15,7 @@
     "check": "npm run typecheck && npm run test && npm run build && npm run build:worker",
     "prepare:wrangler": "node scripts/prepare-wrangler.mjs",
     "deploy": "npm run check && npm run deploy:worker",
-    "deploy:worker": "npm run prepare:wrangler && wrangler deploy --config wrangler.generated.jsonc",
+    "deploy:worker": "npm run db:migrate:remote && wrangler deploy --config wrangler.generated.jsonc",
     "db:migrate:local": "npm run prepare:wrangler && wrangler d1 migrations apply DB --local --config wrangler.generated.jsonc",
     "db:migrate:remote": "npm run prepare:wrangler && wrangler d1 migrations apply DB --remote --config wrangler.generated.jsonc",
     "build:worker": "wrangler deploy --dry-run --outdir .wrangler/build"

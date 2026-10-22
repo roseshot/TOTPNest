@@ -9,14 +9,14 @@ type CodeWindow = {
   kind?: 'current' | 'next'
 }
 type CodeFrame = CodeWindow & { receivedAt: number }
-type Props = { endpoint: string; token?: string; unlock?: string; onAuthError?: (err: ApiFailure) => void }
+type Props = { endpoint: string; unlock?: string; onAuthError?: (err: ApiFailure) => void }
 
 function display(code: string): string {
   const midpoint = Math.ceil(code.length / 2)
   return code.slice(0, midpoint) + ' ' + code.slice(midpoint)
 }
 
-export function CodePanel({ endpoint, token, unlock, onAuthError }: Props) {
+export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const [current, setCurrent] = useState<CodeFrame | null>(null)
   const [next, setNext] = useState<CodeWindow | null>(null)
   const [tick, setTick] = useState(() => performance.now())
@@ -42,9 +42,9 @@ export function CodePanel({ endpoint, token, unlock, onAuthError }: Props) {
 
   const send = useCallback((suffix: 'code' | 'next', expectedExpiry?: number, signal?: AbortSignal) =>
     request<CodeWindow>(endpoint + '/' + suffix, {
-      method: 'POST', token, unlock, signal,
+      method: 'POST', unlock, signal,
       ...(suffix === 'next' ? { body: { expectedExpiry } } : {})
-    }), [endpoint, token, unlock])
+    }), [endpoint, unlock])
 
   const fetchCurrent = useCallback(async () => {
     if (flight.current) return
@@ -63,7 +63,7 @@ export function CodePanel({ endpoint, token, unlock, onAuthError }: Props) {
         const err = failure as ApiFailure
         setError(err.message)
         authError.current?.(err)
-        retryAt.current = performance.now() + 3_000
+        retryAt.current = err.code === 'LOCKED' ? Number.POSITIVE_INFINITY : performance.now() + 3_000
       }
     } finally {
       if (version === generation.current) {
@@ -93,7 +93,7 @@ export function CodePanel({ endpoint, token, unlock, onAuthError }: Props) {
         setError(err.code === 'TOO_EARLY' ? '' : err.message)
         authError.current?.(err)
         requestedFor.current = null
-        retryAt.current = performance.now() + 1_500
+        retryAt.current = err.code === 'LOCKED' ? Number.POSITIVE_INFINITY : performance.now() + 1_500
       }
     } finally {
       if (version === generation.current) {
@@ -195,7 +195,8 @@ export function CodePanel({ endpoint, token, unlock, onAuthError }: Props) {
       <span>{preview && current ? `Currently valid: ${display(current.code)}` : copied ? 'Copied' : 'Auto-refresh'}</span>
       <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds' : 'Connecting...'}</span>
     </div>
-    {error && <div className="message error" role="alert">{error} <button className="link-button"
-      onClick={() => { retryAt.current = 0; void fetchCurrent() }}>Retry</button></div>}
+    {error && <div className="message error" role="alert">{error}
+      {Number.isFinite(retryAt.current) && <button className="link-button"
+        onClick={() => { retryAt.current = 0; void fetchCurrent() }}>Retry</button>}</div>}
   </section>
 }

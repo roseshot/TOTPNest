@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { base64url, constantTimeEqual, decrypt, encrypt, issueUnlock, randomToken, sha256, sharePasswordHash, verifyUnlock } from '../src/worker/crypto'
+import { base64url, constantTimeEqual, decrypt, encrypt, issueUnlock, sharePasswordHash, verifyUnlock } from '../src/worker/crypto'
 
 describe('encrypted secrets and sharing', () => {
   const master = base64url(new Uint8Array(32).fill(7))
@@ -10,11 +10,10 @@ describe('encrypted secrets and sharing', () => {
   })
   it('signs short-lived tickets bound to a specific link', async () => {
     const now = 1_780_000_000_000
-    const hash = await sha256(randomToken())
-    const token = await issueUnlock(master, 'share-one', hash, now)
-    expect(await verifyUnlock(master, 'share-one', hash, token, now)).toBe(true)
-    expect(await verifyUnlock(master, 'share-two', hash, token, now)).toBe(false)
-    expect(await verifyUnlock(master, 'share-one', hash, token, now + 900_001)).toBe(false)
+    const token = await issueUnlock(master, 'share-one', now)
+    expect(await verifyUnlock(master, 'share-one', token, now)).toBe(true)
+    expect(await verifyUnlock(master, 'share-two', token, now)).toBe(false)
+    expect(await verifyUnlock(master, 'share-one', token, now + 900_001)).toBe(false)
   })
   it('stores distinct keyed password digests per share', async () => {
     expect(await sharePasswordHash(master, 'one', 'password')).not.toBe(
