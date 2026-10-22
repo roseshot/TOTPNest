@@ -185,13 +185,16 @@ describe('share migration and brute-force protection', () => {
     } finally { sqlite.close() }
   })
 
-  it('hard-deletes revoked shares without deleting their TOTP entries', async () => {
+  it('revokes a share immediately but retains its D1 row until UTC midnight', async () => {
     const { sqlite, env } = database()
     try {
       const id = await seedLegacyShare(sqlite)
       sqlite.exec(migrate)
       sqlite.exec(cleanupMigration)
       const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(id).public_id
+      const midnight = Date.parse('2026-10-24T00:00:00Z')
+      const revokedAt = midnight - 30_000
+      vi.spyOn(Date, 'now').mockReturnValue(revokedAt)
       const login = await post(env, '/api/admin/login', { password: adminPassword })
       const cookie = login.headers.get('set-cookie')?.split(';')[0]
       expect(cookie).toBeTruthy()
@@ -200,7 +203,8 @@ describe('share migration and brute-force protection', () => {
         method: 'DELETE', headers: { Origin: origin, Cookie: cookie }
       }, env)
       expect(revoked.status).toBe(200)
-      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)).toBeUndefined()
+      expect(sqlite.prepare('SELECT revoked_at FROM shares WHERE id = ?').get(id))
+        .toMatchObject({ revoked_at: revokedAt })
       expect(sqlite.prepare('SELECT id FROM entries WHERE id = ?').get('entry-one')).toBeDefined()
       expect((await post(env, '/api/share/' + publicId + '/code')).status).toBe(404)
       const adminList = await app.request(origin + '/api/admin/shares', {
@@ -208,6 +212,18 @@ describe('share migration and brute-force protection', () => {
       }, env)
       expect(adminList.status).toBe(200)
       expect((await adminList.json()).shares).toEqual([])
+
+      // Repeating the request must not shift the purge eligibility.
+      vi.mocked(Date.now).mockReturnValue(revokedAt + 10_000)
+      expect((await app.request(origin + '/api/admin/shares/' + id, {
+        method: 'DELETE', headers: { Origin: origin, Cookie: cookie }
+      }, env)).status).toBe(200)
+      expect(sqlite.prepare('SELECT revoked_at FROM shares WHERE id = ?').get(id))
+        .toMatchObject({ revoked_at: revokedAt })
+
+      await worker.scheduled({ cron: '0 0 * * *', scheduledTime: midnight }, env, {})
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)).toBeUndefined()
+      expect(sqlite.prepare('SELECT id FROM entries WHERE id = ?').get('entry-one')).toBeDefined()
     } finally { sqlite.close() }
   })
 
@@ -232,14 +248,16 @@ describe('share migration and brute-force protection', () => {
     }
   })
 
-  it('denies expired shares immediately and deletes them on the next cleanup run', async () => {
+  it('denies expired shares immediately and purges them at UTC midnight', async () => {
     const { sqlite, env } = database()
     try {
       const oldId = await seedLegacyShare(sqlite)
       sqlite.exec(migrate)
       sqlite.exec(cleanupMigration)
       const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
-      const now = Date.now()
+      const midnight = Date.parse('2026-10-24T00:00:00Z')
+      const now = midnight - 30_000
+      vi.spyOn(Date, 'now').mockReturnValue(now)
       sqlite.prepare('UPDATE shares SET expires_at = ? WHERE id = ?').run(now - 1, oldId)
 
       const login = await post(env, '/api/admin/login', { password: adminPassword })
@@ -265,11 +283,56 @@ describe('share migration and brute-force protection', () => {
       )
       expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(oldId)).toBeDefined()
 
-      await worker.scheduled({ cron: '*/5 * * * *' }, env, {})
+      await worker.scheduled({ cron: '0 0 * * *', scheduledTime: midnight }, env, {})
       expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(oldId)).toBeUndefined()
       expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(activeId)).toBeDefined()
       expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(permanentId)).toBeDefined()
       expect(sqlite.prepare('SELECT id FROM entries WHERE id = ?').get('entry-one')).toBeDefined()
+    } finally { sqlite.close() }
+  })
+
+  it('does not purge shares that became inactive after a delayed midnight trigger', async () => {
+    const { sqlite, env } = database()
+    try {
+      const id = await seedLegacyShare(sqlite)
+      sqlite.exec(migrate)
+      sqlite.exec(cleanupMigration)
+      const midnight = Date.parse('2026-10-24T00:00:00Z')
+      const justAfterMidnight = midnight + 5_000
+      vi.spyOn(Date, 'now').mockReturnValue(justAfterMidnight)
+      const login = await post(env, '/api/admin/login', { password: adminPassword })
+      const cookie = login.headers.get('set-cookie')?.split(';')[0]
+      expect((await app.request(origin + '/api/admin/shares/' + id, {
+        method: 'DELETE', headers: { Origin: origin, Cookie: cookie }
+      }, env)).status).toBe(200)
+
+      // A delayed run for the prior midnight cannot remove the new revocation.
+      await worker.scheduled({ cron: '0 0 * * *', scheduledTime: midnight }, env, {})
+      expect(sqlite.prepare('SELECT revoked_at FROM shares WHERE id = ?').get(id))
+        .toMatchObject({ revoked_at: justAfterMidnight })
+      // The following day's cleanup removes the retained record.
+      await worker.scheduled({ cron: '0 0 * * *', scheduledTime: midnight + 86_400_000 }, env, {})
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)).toBeUndefined()
+    } finally { sqlite.close() }
+  })
+
+  it('keeps a newly expired share until the next UTC midnight cutoff', async () => {
+    const { sqlite, env } = database()
+    try {
+      const id = await seedLegacyShare(sqlite)
+      sqlite.exec(migrate)
+      sqlite.exec(cleanupMigration)
+      const midnight = Date.parse('2026-10-24T00:00:00Z')
+      const expiredAt = midnight + 2_000
+      sqlite.prepare('UPDATE shares SET expires_at = ? WHERE id = ?').run(expiredAt, id)
+      vi.spyOn(Date, 'now').mockReturnValue(midnight + 20_000)
+      const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(id).public_id
+      expect((await post(env, '/api/share/' + publicId + '/code')).status).toBe(404)
+
+      await worker.scheduled({ cron: '0 0 * * *', scheduledTime: midnight }, env, {})
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)).toBeDefined()
+      await worker.scheduled({ cron: '0 0 * * *', scheduledTime: midnight + 86_400_000 }, env, {})
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)).toBeUndefined()
     } finally { sqlite.close() }
   })
 

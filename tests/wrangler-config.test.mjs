@@ -18,7 +18,7 @@ describe('D1 build-variable configuration', () => {
       database_id: vars.D1_DATABASE_ID
     }])
     expect(generated.ratelimits).toEqual(source.ratelimits)
-    expect(generated.triggers).toEqual({ crons: ['*/5 * * * *'] })
+    expect(generated.triggers).toEqual({ crons: ['0 0 * * *'] })
     expect(generated.assets).toEqual(source.assets)
     expect(generated.main).toBe(source.main)
   })

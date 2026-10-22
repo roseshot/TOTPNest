@@ -10,7 +10,7 @@ A **browser-only, single-administrator TOTP manager** built on Cloudflare Worker
 - Import an `otpauth://totp/...` link or upload a QR code image. QR recognition runs in the browser; images are not uploaded.
 - TOTP secrets are encrypted with AES-256-GCM by the Worker before being written to D1.
 - Create multiple share links per TOTP entry, with separate expiration dates and revocation controls.
-- Revoking a share permanently deletes its D1 record. Expired shares are denied immediately and physically purged by a five-minute Cron Trigger.
+- Revoked and expired shares stop working immediately, but their D1 records are removed together by a once-daily UTC midnight Cron Trigger.
 - Share URLs use a 22-character case-sensitive Base62 ID with approximately 131 bits of randomness, without a separate URL token.
 - **Public links:** anyone holding the URL can view the shared code.
 - **Password-protected links:** recipients must also enter a dedicated share password. No guest sign-up is required.
@@ -210,12 +210,12 @@ The new URL is a bearer capability: anyone knowing the share ID can access an un
 
 ## Share deletion and automatic expiration
 
-- **Revoke:** `DELETE /api/admin/shares/:id` physically removes the share row in D1. The underlying TOTP entry is never deleted by share revocation. The deleted link cannot be recovered through the dashboard.
-- **Expire:** requests are denied as soon as `expires_at` passes, independently of database cleanup. Admin lists exclude expired records even before they are physically removed.
-- **Cleanup:** Cloudflare Cron Triggers run the Worker's `scheduled()` handler every five minutes (`*/5 * * * *`) and delete expired shares. Cron delivery can be delayed, so physical deletion is asynchronous rather than guaranteed at the exact expiration instant. Shares without expiration remain until manually revoked.
-- **Existing data:** migration `0003_share_cleanup.sql` adds an expiration index and permanently removes previously revoked or expired records. Active shares, their passwords, and all TOTP entries are preserved. Back up the database before production migration if historical records matter.
+- **Revoke:** `DELETE /api/admin/shares/:id` immediately marks the share as revoked (`revoked_at`) without deleting the row. New visitor requests are denied right away. The record remains in D1 until the next scheduled UTC midnight cleanup. The underlying TOTP entry is not deleted.
+- **Expire:** requests are denied as soon as `expires_at` passes, independently of database cleanup. The record remains until the next scheduled UTC midnight cleanup. Admin lists exclude expired and revoked records while they await deletion.
+- **Cleanup:** Cloudflare Cron Triggers run the Worker's `scheduled()` handler daily at **00:00 UTC (GMT+0)** (`0 0 * * *`). The cleanup deletes shares revoked before that scheduled midnight or expired at or before it. The handler uses the scheduled event's UTC timestamp as its cutoff, so a delayed invocation cannot remove shares that became inactive after midnight. Cloudflare may execute a trigger later than the scheduled time; physical deletion is therefore not guaranteed at the exact second. Active shares without expiration remain untouched.
+- **Existing data:** the historical migration `0003_share_cleanup.sql` added an expiration index and removed then-inactive records when first applied. Applied migrations are left unchanged; new revocations and expirations follow the daily cleanup schedule. Active shares, their passwords, and all TOTP entries are preserved. Back up the database before production migration if historical records matter.
 
-Cloudflare Workers KV was intentionally not added: KV provides eventual consistency, and cached values may remain visible in some regions after deletion. Public share-code authorization continues to use primary-first D1 sessions so a revoked link stops authorizing new code requests immediately. As with any TOTP system, codes already delivered before revocation cannot be invalidated by deleting the share.
+Cloudflare Workers KV was intentionally not added: KV provides eventual consistency, and cached values may remain visible in some regions after deletion. Public share-code authorization continues to use primary-first D1 sessions so a revoked link stops authorizing new code requests immediately, even when its row is retained until midnight. As with any TOTP system, codes already delivered before revocation cannot be invalidated by deleting the share.
 
 References: [Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/) and [Workers KV consistency](https://developers.cloudflare.com/kv/concepts/how-kv-works/).
 
@@ -240,7 +240,7 @@ Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing en
 npm run check
 ```
 
-The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, share deletion and expiration cleanup, public route isolation, square-corner styles, indexing headers, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, midnight share cleanup and immediate access revocation, public route isolation, square-corner styles, indexing headers, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
 
 ## API overview
 

@@ -330,9 +330,10 @@ app.get('/api/admin/shares/:id/link', async (c) => {
   return c.json({ url: new URL('/s/' + row.public_id, c.req.url).toString() })
 })
 app.delete('/api/admin/shares/:id', async (c) => {
-  // Removing the row immediately revokes the capability on primary-first reads.
-  await c.var.db.prepare('DELETE FROM shares WHERE id = ?')
-    .bind(c.req.param('id')).run()
+  // Revoke immediately, but retain the row for the next UTC midnight purge.
+  // Do not move the original revocation time on repeated requests.
+  await c.var.db.prepare('UPDATE shares SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL')
+    .bind(Date.now(), c.req.param('id')).run()
   return c.json({ ok: true })
 })
 
@@ -392,7 +393,9 @@ export default {
   fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
     return app.fetch(request, env, ctx)
   },
-  async scheduled(_event: ScheduledController, env: Bindings) {
-    await cleanupExpiredShares(env.DB, Date.now())
+  async scheduled(event: ScheduledController, env: Bindings) {
+    // A delayed midnight run must not remove links revoked or expired
+    // after the midnight for which the job was scheduled.
+    await cleanupExpiredShares(env.DB, event.scheduledTime)
   }
 } satisfies ExportedHandler<Bindings>
