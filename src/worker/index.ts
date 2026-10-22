@@ -117,7 +117,7 @@ async function visitorIp(c: Ctx): Promise<string> {
   return sha256(c.req.header('CF-Connecting-IP') || 'unknown')
 }
 async function requirePublicCodeRateLimit(c: Ctx) {
-  const id = c.req.param('id')
+  const id = c.req.param('id') || ''
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new ApiError(404, 'Link unavailable', 'SHARE_UNAVAILABLE')
   // This fast, approximate per-location limit protects D1 reads; password attempts remain D1-limited.
   const { success } = await c.env.PUBLIC_CODE_RATE_LIMITER.limit({ key: id + ':' + await visitorIp(c) })
