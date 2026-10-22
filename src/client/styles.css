@@ -84,12 +84,12 @@ input:focus, select:focus, textarea:focus {
 input::placeholder, textarea::placeholder { color: var(--faint); }
 textarea { resize: vertical; overflow-wrap: anywhere; }
 select { appearance: auto; }
-button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-button):not(.theme-toggle):not(.code-copy):not(.link-button):not(.search-clear) {
+button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-button):not(.theme-toggle):not(.code-copy):not(.link-button):not(.search-clear):not(.group-filter) {
   min-height: 42px; padding: 10px 15px;
   background: var(--surface-soft); border: 1px solid var(--stroke);
   border-radius: 11px; color: var(--text); font-weight: 650;
 }
-button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-button):not(.theme-toggle):not(.code-copy):not(.link-button):not(.search-clear):hover:not(:disabled) {
+button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-button):not(.theme-toggle):not(.code-copy):not(.link-button):not(.search-clear):not(.group-filter):hover:not(:disabled) {
   background: var(--stroke); border-color: var(--stroke-strong);
 }
 .primary {

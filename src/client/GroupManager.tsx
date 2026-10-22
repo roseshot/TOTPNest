@@ -76,15 +76,15 @@ export function GroupManager({ groups, entries, filter, onSelect, onChanged }: P
       </button>
     </div>
     <div className="group-filters" role="group" aria-label="Filter saved codes">
-      <button type="button" aria-pressed={filter === 'all'} className={filter === 'all' ? 'selected' : ''}
+      <button type="button" aria-pressed={filter === 'all'} className={'group-filter ' + (filter === 'all' ? 'selected' : '')}
         onClick={() => onSelect('all')}>All codes <span>{entries.length}</span></button>
       {groups.map((group) => <button type="button" key={group.id}
-        aria-pressed={filter === group.id} className={filter === group.id ? 'selected' : ''}
+        aria-pressed={filter === group.id} className={'group-filter ' + (filter === group.id ? 'selected' : '')}
         onClick={() => onSelect(group.id)}>{group.name}
         <span>{entriesInGroup(entries, group.id).length}</span>
       </button>)}
       <button type="button" aria-pressed={filter === 'ungrouped'}
-        className={filter === 'ungrouped' ? 'selected' : ''}
+        className={'group-filter ' + (filter === 'ungrouped' ? 'selected' : '')}
         onClick={() => onSelect('ungrouped')}>Ungrouped
         <span>{entriesInGroup(entries, 'ungrouped').length}</span>
       </button>

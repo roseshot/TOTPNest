@@ -18,6 +18,7 @@ describe('group management UI', () => {
     expect(html).toContain('Work')
     expect(html).toContain('Family')
     expect(html).toContain('aria-pressed="true"')
+    expect(html).toContain('class="group-filter selected"')
     expect(html).toContain('aria-pressed="false"')
   })
 })
