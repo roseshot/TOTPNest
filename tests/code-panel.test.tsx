@@ -13,6 +13,9 @@ describe('code display UX', () => {
   it('labels loading state accurately and offers an accessible copy action', () => {
     const html = renderToStaticMarkup(createElement(CodePanel, { endpoint: '/api/share/example' }))
     expect(html).toContain('Current code')
+    expect(html).toContain('SIGN-IN CODE')
+    expect(html).toContain('Copy code')
+    expect(html).not.toContain('Next code')
     expect(html).toContain('Loading')
     expect(html).toContain('aria-label="Copy current code"')
     expect(html).toContain('disabled=""')

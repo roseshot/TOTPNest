@@ -11,6 +11,10 @@ describe('otpauth import parsing', () => {
     })
   })
 
+  it('offers plain-language guidance for malformed setup links', () => {
+    expect(() => parseOtpUri('not a link')).toThrow('Copy the full link and try again.')
+    expect(() => parseOtpUri('')).toThrow('Copy the full link and try again.')
+  })
   it('rejects HOTP and invalid or empty TOTP settings', () => {
     expect(() => parseOtpUri('otpauth://hotp/User?secret=JBSWY3DPEHPK3PXP')).toThrow()
     expect(() => parseOtpUri('otpauth://totp/User?secret=JBSWY3DPEHPK3PXP&period=0')).toThrow()

@@ -291,12 +291,12 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
 .progress-fill.amber { background: linear-gradient(90deg,#f8c467,#ffa442); }
 .code-foot { display: flex; justify-content: space-between; gap: 14px; margin-top: 12px;
   color: #c4d9f9; font-size: .73rem; }
-.next-code-preview { display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  margin-top: 16px; padding: 13px 15px; border-radius: 12px;
-  background: rgba(244,167,49,.10); border: 1px solid rgba(245,186,73,.4); color: #fff0ce; }
-.next-code-preview > div { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; }
-.next-code-preview small { font-size: .7rem; opacity: .8; }
-.next-code-preview strong { font-size: 1.07rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.code-expiry-note { margin-top: 14px; color: #ffe0ab; font-size: .78rem; }
+.manual-code { display: flex; flex-direction: column; gap: 9px; margin-top: 14px;
+  padding: 14px; border: 1px solid rgba(233,187,117,.40); border-radius: 12px; }
+.manual-code label { font-size: .81rem; color: #ffe0ab; }
+.manual-code input { color: #fff; background: rgba(255,255,255,.12); font-variant-numeric: tabular-nums;
+  letter-spacing: .08em; font-size: 1.12rem; font-weight: 750; }
 .code-panel .message { margin-top: 15px; }
 .code-panel .link-button { color: inherit; margin-left: 5px; }
 
@@ -324,6 +324,8 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
 .upload-label { display: inline-flex; width: auto; padding: 9px 13px; border: 1px solid var(--stroke-strong); border-radius: 10px;
   color: var(--accent); background: var(--surface-soft); font-size: .78rem; cursor: pointer; font-weight: 750; }
 .upload-label:hover { border-color: var(--accent); }
+.upload-label.upload-busy { opacity: .6; cursor: progress; pointer-events: none; }
+.setup-key-help { font-size: .78rem; margin-top: -6px; }
 .field-row { display: flex; align-items: stretch; gap: 8px; width: 100%; }
 .field-row input { flex: 1; min-width: 0; }
 .field-row button { flex: 0 0 auto; }
@@ -366,6 +368,11 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
 .share-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .manual-link { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px; margin-bottom: 18px; }
 .manual-link textarea { width: 100%; }
+.share-choice { border-color: var(--accent); background: var(--surface-high); }
+.sign-in-error { width: min(440px,100%); display: flex; flex-direction: column;
+  align-items: flex-start; gap: 16px; padding: clamp(25px,5vw,38px); }
+.sign-in-error h1 { font-size: 1.6rem; }
+.sign-in-error .primary { align-self: flex-start; }
 
 /* Public-only experience: no administrator links or identity details. */
 .share-shell, .login-shell { min-height: 100dvh; background:
@@ -409,7 +416,8 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
 .shared-page .code-copy { color: white; background: linear-gradient(103deg,#075def,#078efa 65%,#04bcd6); }
 .shared-page .code-copy:hover:not(:disabled) { background: linear-gradient(103deg,#0a6dff,#05bdec); }
 .shared-page .progress { background: var(--surface-soft); }
-.shared-page .next-code-preview { background: rgba(246,168,40,.09); color: var(--text); border-color: rgba(199,150,60,.35); }
+.shared-page .code-expiry-note, .shared-page .manual-code label { color: var(--muted); }
+.shared-page .manual-code input { color: var(--text); background: var(--surface-high); }
 .shared-privacy-note { max-width: 410px; display: flex; gap: 9px; align-items: center; text-align: center; justify-content: center;
   color: var(--muted); font-size: .79rem; }
 .shared-privacy-note span { color: var(--accent); }
@@ -470,6 +478,8 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
   .code-digits { font-size: clamp(2.2rem,5vw,3.5rem); }
 }
 @media (max-width: 720px) {
+  /* Bring the actual code list into view first on phones. Counts remain on the tabs. */
+  .hero-banner, .metric-grid { display: none; }
   .dashboard { display: block; }
   .sidebar { position: relative; height: auto; padding: 11px 17px;
     flex-direction: row; align-items: center; justify-content: space-between; border-right: 0; border-bottom: 1px solid var(--stroke); }

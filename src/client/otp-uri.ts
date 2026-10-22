@@ -9,13 +9,17 @@ export type EntryDraft = {
 }
 
 export function parseOtpUri(value: string): EntryDraft {
-  const uri = new URL(value.trim())
+  let uri: URL
+  try { uri = new URL(value.trim()) }
+  catch { throw new Error("This setup link doesn't look right. Copy the full link and try again.") }
   if (uri.protocol !== 'otpauth:' || uri.hostname.toLowerCase() !== 'totp' ||
       uri.username || uri.password || uri.port || uri.hash) {
     throw new Error("This setup link isn't supported. Try a link for a verification code.")
   }
   const params = uri.searchParams
-  const label = decodeURIComponent(uri.pathname.replace(/^\//, ''))
+  let label: string
+  try { label = decodeURIComponent(uri.pathname.replace(/^\//, '')) }
+  catch { throw new Error("This setup link doesn't look right. Copy the full link and try again.") }
   const colon = label.indexOf(':')
   const issuer = (params.get('issuer') || (colon >= 0 ? label.slice(0, colon) : '')).trim()
   const account = (colon >= 0 ? label.slice(colon + 1) : label).trim()

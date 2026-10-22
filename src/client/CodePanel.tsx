@@ -28,6 +28,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const [tick, setTick] = useState(() => performance.now())
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [manualCopy, setManualCopy] = useState(false)
   const flight = useRef(false)
   const controller = useRef<AbortController | null>(null)
   const generation = useRef(0)
@@ -41,6 +42,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     if (!active.current) return
     setCurrent({ ...value, receivedAt: performance.now() })
     setCopied(false)
+    setManualCopy(false)
     setNext(null)
     setError('')
     requestedFor.current = null
@@ -120,6 +122,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     setCurrent(null)
     setNext(null)
     setError('')
+    setManualCopy(false)
     void fetchCurrent()
     return () => {
       if (generation.current !== version) return
@@ -142,7 +145,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const remaining = current ? Math.max(0, current.expiresAt - now) : 0
   const lifetime = current ? current.expiresAt - current.validFrom : 30_000
   const percentage = Math.min(100, Math.max(0, remaining / lifetime * 100))
-  const preview = Boolean(next && next.validFrom === current?.expiresAt && remaining > 0 && remaining <= 5_000)
+  const expiringSoon = current !== null && remaining > 0 && remaining <= 5_000
   const expired = current !== null && now >= current.expiresAt
 
   useEffect(() => {
@@ -173,17 +176,21 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     if (!current || expired) return
     // Copy the currently valid code even when the next code is being previewed.
     if (await copyText(current.code)) {
+      setManualCopy(false)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1400)
-    } else setError("Couldn't copy the code. Try selecting it instead.")
+    } else {
+      setCopied(false)
+      setManualCopy(true)
+    }
   }
 
 
   return <section className="code-panel" aria-label="Verification code">
     <div className="code-head">
-      <span className="code-kicker">LIVE VERIFICATION CODE</span>
-      <span role="status" className={'status ' + (!current || expired || preview ? 'warning' : 'success')}>
-        {!current ? error ? 'Unavailable' : 'Loading' : expired ? 'Refreshing' : preview ? 'Expiring soon' : 'Ready to use'}
+      <span className="code-kicker">SIGN-IN CODE</span>
+      <span role="status" className={'status ' + (!current || expired || expiringSoon ? 'warning' : 'success')}>
+        {!current ? error ? 'Couldn't load' : 'Loading' : expired ? 'Updating' : expiringSoon ? 'Changes soon' : 'Ready to use'}
       </span>
     </div>
     <div className="code-visual">
@@ -199,19 +206,23 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     </div>
     <button type="button" className="code-copy" disabled={!current || expired}
       onClick={() => void doCopy()} aria-label="Copy current code">
-      <span aria-hidden="true">▣</span> {copied ? 'Copied to clipboard' : 'Copy current code'}
+      <span aria-hidden="true">▣</span> {copied ? 'Copied' : 'Copy code'}
     </button>
     <div className="progress" role="progressbar" aria-label="Code validity remaining"
       aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percentage)}>
-      <div className={'progress-fill ' + (preview ? 'amber' : '')} style={{ width: percentage + '%' }} />
+      <div className={'progress-fill ' + (expiringSoon ? 'amber' : '')} style={{ width: percentage + '%' }} />
     </div>
     <div className="code-foot">
       <span role="status" aria-live="polite">{copied ? 'Copied to clipboard' : 'Updates automatically'}</span>
-      <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : error ? 'Code unavailable' : 'Loading your code...'}</span>
+      <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : error ? 'Couldn't load the code' : 'Loading your code...'}</span>
     </div>
-    {preview && next && <div className="next-code-preview">
-      <div><span>Next code</span><small>Not active yet — do not use or copy</small></div>
-      <strong>{display(next.code)}</strong>
+    {expiringSoon && <p className="code-expiry-note" role="status">
+      This code is about to change. Wait for the new one if you need more time.
+    </p>}
+    {manualCopy && current && !expired && <div className="manual-code" role="group" aria-label="Copy code manually">
+      <label htmlFor="manual-code-value">Couldn't copy automatically. Select the code below to copy it.</label>
+      <input id="manual-code-value" type="text" readOnly autoFocus value={current.code}
+        onFocus={(event) => event.currentTarget.select()} autoComplete="off" />
     </div>}
     {error && <div className="message error" role="alert">{error}
       {Number.isFinite(retryAt.current) && <button className="link-button"
