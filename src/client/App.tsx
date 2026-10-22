@@ -74,7 +74,7 @@ function ShareIdHome() {
     event.preventDefault()
     const path = sharePathForId(shareId)
     if (!path) {
-      setError('That Share ID doesn't look right. Check it and try again.')
+      setError("That Share ID doesn't look right. Check it and try again.")
       return
     }
     window.location.assign(path)
@@ -110,11 +110,11 @@ function ShareIdHome() {
 
 
 function PublicUnavailable({ invalidShare = false }: { invalidShare?: boolean }) {
-  useEffect(() => { document.title = invalidShare ? 'TOTPNest | Can't open this link' : 'TOTPNest | Page not found' }, [invalidShare])
+  useEffect(() => { document.title = invalidShare ? "TOTPNest | Can't open this link" : 'TOTPNest | Page not found' }, [invalidShare])
   return <PublicFrame>
     <section className="card public-not-found center">
       <span className="public-state-icon" aria-hidden="true">⌁</span>
-      <h1>{invalidShare ? 'Can't open this link' : 'Page not found'}</h1>
+      <h1>{invalidShare ? "Can't open this link" : 'Page not found'}</h1>
       <p className="muted">{invalidShare ? 'Check the Share ID, or ask the sender for a new link.' : "Check the address and try again."}</p>
       <a className="public-back-link" href="/">Enter another Share ID →</a>
     </section>
@@ -541,7 +541,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
     } catch (cause) { setError(message(cause)) }
   }
   const revoke = async (id: string) => {
-    if (!window.confirm('Stop sharing this code? People won't be able to get new codes from this link. A code already copied may still work until it changes.')) return
+    if (!window.confirm("Stop sharing this code? People won't be able to get new codes from this link. A code already copied may still work until it changes.")) return
     try {
       await request('/api/admin/shares/' + id, { method: 'DELETE' })
       await reload()
@@ -773,7 +773,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
           id="panel-shares" aria-labelledby="tab-shares" tabIndex={0}>
           {shares.length === 0 && <div className="empty-state">
             <span className="empty-symbol" aria-hidden="true">↗</span>
-            <h2>{loading ? 'Loading share links...' : 'You haven't shared any codes yet'}</h2>
+            <h2>{loading ? 'Loading share links...' : "You haven't shared any codes yet"}</h2>
             {!loading && <>
               <p className="muted">Choose an account first, then decide how long to share its code.</p>
               <button type="button" className="primary" onClick={startNew}>

@@ -190,7 +190,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     <div className="code-head">
       <span className="code-kicker">SIGN-IN CODE</span>
       <span role="status" className={'status ' + (!current || expired || expiringSoon ? 'warning' : 'success')}>
-        {!current ? error ? 'Couldn't load' : 'Loading' : expired ? 'Updating' : expiringSoon ? 'Changes soon' : 'Ready to use'}
+        {!current ? error ? "Couldn't load" : 'Loading' : expired ? 'Updating' : expiringSoon ? 'Changes soon' : 'Ready to use'}
       </span>
     </div>
     <div className="code-visual">
@@ -214,7 +214,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     </div>
     <div className="code-foot">
       <span role="status" aria-live="polite">{copied ? 'Copied to clipboard' : 'Updates automatically'}</span>
-      <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : error ? 'Couldn't load the code' : 'Loading your code...'}</span>
+      <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : error ? "Couldn't load the code" : 'Loading your code...'}</span>
     </div>
     {expiringSoon && <p className="code-expiry-note" role="status">
       This code is about to change. Wait for the new one if you need more time.
