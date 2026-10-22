@@ -101,16 +101,6 @@ async function getAdminSession(c: Ctx): Promise<boolean> {
   ).bind(hash, Date.now()).first()
   return Boolean(row)
 }
-async function rateLimit(c: Ctx, name: string, limit: number, windowMs: number) {
-  const now = Date.now(), reset = now + windowMs
-  const row = await c.var.db.prepare(`INSERT INTO rate_limits (key,count,reset_at)
-    VALUES (?,1,?)
-    ON CONFLICT(key) DO UPDATE SET
-    count = CASE WHEN rate_limits.reset_at <= ? THEN 1 ELSE rate_limits.count + 1 END,
-    reset_at = CASE WHEN rate_limits.reset_at <= ? THEN ? ELSE rate_limits.reset_at END
-    RETURNING count`).bind(name, reset, now, now, reset).first<{ count: number }>()
-  if (!row || row.count > limit) throw new ApiError(429, 'Too many requests. Please try again later', 'RATE_LIMIT')
-}
 async function visitorIp(c: Ctx): Promise<string> {
   return sha256(c.req.header('CF-Connecting-IP') || 'unknown')
 }
@@ -122,11 +112,11 @@ async function assertNotLocked(c: Ctx, key: string, policy: FailurePolicy) {
   const until = await lockedUntil(c.var.db, key, policy)
   if (until !== null) throw blocked(until)
 }
-async function requirePublicRateLimit(c: Ctx) {
-  // Scope to the visitor, not to the requested ID: rotating guessed IDs cannot
-  // bypass this approximate, per-location protection for D1.
+async function requireVisitorRateLimit(c: Ctx, scope: 'admin' | 'share') {
+  // Never use an account-wide hard cap that attackers could exhaust for all users.
+  // Scope to the visitor rather than the requested share ID to prevent ID rotation.
   const { success } = await c.env.PUBLIC_CODE_RATE_LIMITER.limit({
-    key: 'share-visitor:' + await visitorIp(c)
+    key: scope + '-visitor:' + await visitorIp(c)
   })
   if (!success) throw new ApiError(429, 'Too many requests. Please try again later', 'RATE_LIMIT', 60)
 }
@@ -211,10 +201,10 @@ app.get('/api/health', (c) => c.json({ ok: true }))
 app.get('/api/admin/session', async (c) => c.json({ authenticated: await getAdminSession(c) }))
 app.post('/api/admin/login', async (c) => {
   requireConfig(c)
+  await requireVisitorRateLimit(c, 'admin')
   const ip = await visitorIp(c)
   const failuresKey = 'admin-password-fail:' + ip
   await assertNotLocked(c, failuresKey, PASSWORD_FAILURE_POLICY)
-  await rateLimit(c, 'login-global', 100, 15 * 60_000)
   const body = await jsonBody(c)
   const password = body.password
   if (typeof password !== 'string' || password.length > 1024 ||
@@ -345,12 +335,11 @@ app.delete('/api/admin/shares/:id', async (c) => {
 
 app.post('/api/share/:id/unlock', async (c) => {
   requireConfig(c)
-  await requirePublicRateLimit(c)
+  await requireVisitorRateLimit(c, 'share')
   const share = await getShare(c)
   if (!share.password_hash) return c.json({ unlocked: true })
   const failuresKey = 'share-password-fail:' + await visitorIp(c)
   await assertNotLocked(c, failuresKey, PASSWORD_FAILURE_POLICY)
-  await rateLimit(c, 'unlock-share:' + share.id, 100, 15 * 60_000)
   const body = await jsonBody(c)
   if (typeof body.password !== 'string' || body.password.length > 128 ||
     !constantTimeEqual(await sharePasswordHash(c.env.DATA_ENCRYPTION_KEY, share.id,
@@ -359,20 +348,21 @@ app.post('/api/share/:id/unlock', async (c) => {
     if (until !== null) throw blocked(until)
     throw new ApiError(401, 'Incorrect share password', 'BAD_SHARE_PASSWORD')
   }
-  await clearFailures(c.var.db, failuresKey)
+  // Success does not clear IP-wide share-password failures: otherwise a known
+  // password for one share could reset the guessing budget for other shares.
   const ticket = await issueUnlock(c.env.DATA_ENCRYPTION_KEY, share.id, Date.now())
   return c.json({ unlockToken: ticket })
 })
 app.post('/api/share/:id/code', async (c) => {
   requireConfig(c)
-  await requirePublicRateLimit(c)
+  await requireVisitorRateLimit(c, 'share')
   const share = await getShare(c)
   await requireUnlocked(c, share)
   return codeFor(c, await getEntry(c, share.entry_id))
 })
 app.post('/api/share/:id/next', async (c) => {
   requireConfig(c)
-  await requirePublicRateLimit(c)
+  await requireVisitorRateLimit(c, 'share')
   const share = await getShare(c)
   await requireUnlocked(c, share)
   return codeFor(c, await getEntry(c, share.entry_id), true)

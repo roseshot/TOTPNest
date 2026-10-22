@@ -166,6 +166,24 @@ describe('share migration and brute-force protection', () => {
     } finally { sqlite.close() }
   })
 
+  it('cannot reset share-password guessing by unlocking a known share', async () => {
+    const { sqlite, env } = database()
+    try {
+      const oldId = await seedLegacyShare(sqlite, 'known-password')
+      sqlite.exec(migrate)
+      const validId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
+      vi.spyOn(Date, 'now').mockReturnValue(1_790_000_000_000)
+      for (let i = 0; i < 2; i++) {
+        expect((await post(env, '/api/share/' + validId + '/unlock', { password: 'wrong' })).status).toBe(401)
+      }
+      expect((await post(env, '/api/share/' + validId + '/unlock', { password: 'known-password' })).status).toBe(200)
+      for (let i = 0; i < 2; i++) {
+        expect((await post(env, '/api/share/' + validId + '/unlock', { password: 'wrong' })).status).toBe(401)
+      }
+      expect((await post(env, '/api/share/' + validId + '/unlock', { password: 'wrong' })).status).toBe(429)
+    } finally { sqlite.close() }
+  })
+
   it('creates a short ID-only URL with no bearer-token fragment', async () => {
     const { sqlite, env } = database()
     try {

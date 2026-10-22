@@ -18,7 +18,7 @@ A **browser-only, single-administrator TOTP manager** built on Cloudflare Worker
 - The next code is visibly marked as **not yet active**, and the copy button always copies the currently valid code.
 - The browser updates the countdown locally; no per-second API polling or WebSocket is required.
 - Share-code and unlock endpoints have a Cloudflare-native rate limit to reduce abusive D1 reads without writing to D1 on each successful code view.
-- After five incorrect admin or share-password attempts from a visitor IP within 30 minutes, block that visitor for 30 minutes.
+- After five incorrect admin or share-password attempts from a visitor IP within 30 minutes, block that visitor for 30 minutes. Successful share unlocks do not reset the visitor-wide failure budget.
 - After ten unavailable share ID requests from a visitor IP within 24 hours, block that visitor from share access for 24 hours.
 
 ## Stack
@@ -172,7 +172,7 @@ A next code preview may **not be accepted** by the target service before its tim
 - Protected-share passwords use a purpose-separated, keyed HMAC verifier derived from the Worker encryption secret. Each share has a distinct identifier. Worker and D1 rate limits discourage online guessing; **use a strong share password**.
 - Successful password unlocks issue a short-lived 15-minute HMAC-signed ticket bound to the share ID. The browser keeps the ticket in session storage only.
 - APIs check request origin, avoid cross-origin access, stream and cap JSON request bodies at 8 KiB, and disable caching.
-- The Cloudflare rate-limiting binding caps combined share-code and unlock traffic at approximately 120 requests per minute per visitor IP, per Cloudflare location. Limits are approximate rather than globally strict. D1-backed failure counters use primary-first sessions and enforce 5 incorrect admin/share-password attempts per 30-minute window (30-minute lockout) and 10 unavailable share ID requests per 24-hour window (24-hour lockout). Locks are scoped to the visitor IP, not the whole account or share; users behind shared IPs may still be affected, and attackers using many IPs can spread attempts across visitors. Configure edge security rules for additional protection.
+- The Cloudflare rate-limiting binding caps share-code and unlock traffic together, and admin login separately, at approximately 120 requests per minute per visitor IP, per Cloudflare location. Limits are approximate rather than globally strict. D1-backed failure counters use primary-first sessions and enforce 5 incorrect admin/share-password attempts per 30-minute window (30-minute lockout) and 10 unavailable share ID requests per 24-hour window (24-hour lockout). Locks are scoped to the visitor IP, not the whole account or share; users behind shared IPs may still be affected, and attackers using many IPs can spread attempts across visitors. Configure edge security rules for additional protection.
 - QR imports are limited to 10 MiB files and 20-megapixel images. TOTP imports require canonical Base32 lengths and padding bits. Static assets include a content security policy, no-referrer policy, and search-indexing restrictions.
 - **Revocation cannot invalidate codes already delivered.** Replacing a compromised TOTP secret requires reconfiguring 2FA at the underlying service.
 - There is no offline code generation; if the Worker or its dependencies are unavailable, fresh codes cannot be retrieved.
