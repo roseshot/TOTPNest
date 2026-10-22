@@ -33,8 +33,8 @@ describe('site-wide noindex and square-corner UI', () => {
   it('does not expose links to administration from public screens', () => {
     const app = load('../src/client/App.tsx')
     const routes = load('../src/client/routes.ts')
-    expect(app).toContain("case 'home': return <ShareIdHome />")
-    expect(app).toContain("case 'admin': return <AdminApp />")
+    expect(app).toContain("case 'home': page = <ShareIdHome />; break")
+    expect(app).toContain("if (route.kind === 'admin') return <AdminApp theme={theme} onThemeToggle={onThemeToggle} />")
     expect(app).not.toMatch(/href=["']\/admin(?:\/|["'])/)
     expect(routes).toContain("pathname === '/admin'")
   })
