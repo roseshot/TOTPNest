@@ -10,6 +10,7 @@ A **browser-only, single-administrator TOTP manager** built on Cloudflare Worker
 - Import an `otpauth://totp/...` link or upload a QR code image. QR recognition runs in the browser; images are not uploaded.
 - TOTP secrets are encrypted with AES-256-GCM by the Worker before being written to D1.
 - Create multiple share links per TOTP entry, with separate expiration dates and revocation controls.
+- Revoking a share permanently deletes its D1 record. Expired shares are denied immediately and physically purged by a five-minute Cron Trigger.
 - Share URLs use a 22-character case-sensitive Base62 ID with approximately 131 bits of randomness, without a separate URL token.
 - **Public links:** anyone holding the URL can view the shared code.
 - **Password-protected links:** recipients must also enter a dedicated share password. No guest sign-up is required.
@@ -157,9 +158,9 @@ Wrangler serves the built application at `http://127.0.0.1:8787` by default. Re-
 3. Send the generated link to the recipient. Its path contains a case-sensitive, cryptographically random 22-character Base62 share ID; no URL token is needed.
 4. The recipient opens the link. A password prompt is shown only for password-protected shares.
 5. The page receives the current code from the Worker. Only in the final five seconds of the period does it request the next code.
-6. Revoking a link or reaching its expiration stops further code requests.
+6. Revoking a link immediately deletes its record. Expired links stop working at their expiration time and their records are removed automatically.
 
-The Worker checks share-ID existence, password-unlock tickets (when applicable), expiration, revocation, and visitor lockouts **on every code request**. Share pages and visitor APIs do not return issuer, account, or TOTP secret.
+The Worker checks share-ID existence, password-unlock tickets (when applicable), expiration, revocation, and visitor lockouts **on every code request**. Expiration never depends on whether background cleanup has run. Share pages and visitor APIs do not return issuer, account, or TOTP secret.
 
 A next code preview may **not be accepted** by the target service before its time window starts. The copy button continues to copy the current valid code.
 
@@ -186,6 +187,17 @@ Migration `0002_share_ids.sql` adds a unique public ID to every share without de
 
 The new URL is a bearer capability: anyone knowing the share ID can access an unprotected share. Password-protect sensitive shares, use short expirations, and rotate or revoke compromised links.
 
+## Share deletion and automatic expiration
+
+- **Revoke:** `DELETE /api/admin/shares/:id` physically removes the share row in D1. The underlying TOTP entry is never deleted by share revocation. The deleted link cannot be recovered through the dashboard.
+- **Expire:** requests are denied as soon as `expires_at` passes, independently of database cleanup. Admin lists exclude expired records even before they are physically removed.
+- **Cleanup:** Cloudflare Cron Triggers run the Worker's `scheduled()` handler every five minutes (`*/5 * * * *`) and delete expired shares. Cron delivery can be delayed, so physical deletion is asynchronous rather than guaranteed at the exact expiration instant. Shares without expiration remain until manually revoked.
+- **Existing data:** migration `0003_share_cleanup.sql` adds an expiration index and permanently removes previously revoked or expired records. Active shares, their passwords, and all TOTP entries are preserved. Back up the database before production migration if historical records matter.
+
+Cloudflare Workers KV was intentionally not added: KV provides eventual consistency, and cached values may remain visible in some regions after deletion. Public share-code authorization continues to use primary-first D1 sessions so a revoked link stops authorizing new code requests immediately. As with any TOTP system, codes already delivered before revocation cannot be invalidated by deleting the share.
+
+References: [Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/) and [Workers KV consistency](https://developers.cloudflare.com/kv/concepts/how-kv-works/).
+
 ## Backup and recovery
 
 **Back up both the D1 database and the original `DATA_ENCRYPTION_KEY` separately.** Losing the encryption key makes the encrypted secrets unrecoverable.
@@ -207,7 +219,7 @@ Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing en
 npm run check
 ```
 
-The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, share deletion and expiration cleanup, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
 
 ## API overview
 

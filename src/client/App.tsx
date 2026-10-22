@@ -303,7 +303,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     } catch (cause) { setError(message(cause)) }
   }
   const revoke = async (id: string) => {
-    if (!window.confirm('Revoke this share link?')) return
+    if (!window.confirm('Revoke and permanently delete this share link? This cannot be undone.')) return
     try {
       await request('/api/admin/shares/' + id, { method: 'DELETE' })
       await reload()

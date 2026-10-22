@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import app from '../src/worker/index'
+import worker, { app } from '../src/worker/index'
 import { base64url, encrypt, sharePasswordHash } from '../src/worker/crypto'
 
 const schema = readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8')
 const migrate = readFileSync(new URL('../migrations/0002_share_ids.sql', import.meta.url), 'utf8')
+const cleanupMigration = readFileSync(new URL('../migrations/0003_share_cleanup.sql', import.meta.url), 'utf8')
 const master = base64url(new Uint8Array(32).fill(7))
 const adminPassword = 'test-only-admin-password-123456'
 const origin = 'https://totpnest.example'
@@ -181,6 +182,94 @@ describe('share migration and brute-force protection', () => {
         expect((await post(env, '/api/share/' + validId + '/unlock', { password: 'wrong' })).status).toBe(401)
       }
       expect((await post(env, '/api/share/' + validId + '/unlock', { password: 'wrong' })).status).toBe(429)
+    } finally { sqlite.close() }
+  })
+
+  it('hard-deletes revoked shares without deleting their TOTP entries', async () => {
+    const { sqlite, env } = database()
+    try {
+      const id = await seedLegacyShare(sqlite)
+      sqlite.exec(migrate)
+      sqlite.exec(cleanupMigration)
+      const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(id).public_id
+      const login = await post(env, '/api/admin/login', { password: adminPassword })
+      const cookie = login.headers.get('set-cookie')?.split(';')[0]
+      expect(cookie).toBeTruthy()
+
+      const revoked = await app.request(origin + '/api/admin/shares/' + id, {
+        method: 'DELETE', headers: { Origin: origin, Cookie: cookie }
+      }, env)
+      expect(revoked.status).toBe(200)
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)).toBeUndefined()
+      expect(sqlite.prepare('SELECT id FROM entries WHERE id = ?').get('entry-one')).toBeDefined()
+      expect((await post(env, '/api/share/' + publicId + '/code')).status).toBe(404)
+      const adminList = await app.request(origin + '/api/admin/shares', {
+        headers: { Cookie: cookie }
+      }, env)
+      expect(adminList.status).toBe(200)
+      expect((await adminList.json()).shares).toEqual([])
+    } finally { sqlite.close() }
+  })
+
+  it('removes previously revoked and expired shares during migration', async () => {
+    for (const status of ['revoked', 'expired', 'active']) {
+      const { sqlite } = database()
+      try {
+        const id = await seedLegacyShare(sqlite)
+        sqlite.exec(migrate)
+        if (status === 'revoked') {
+          sqlite.prepare('UPDATE shares SET revoked_at = ? WHERE id = ?').run(123, id)
+        } else if (status === 'expired') {
+          sqlite.prepare('UPDATE shares SET expires_at = ? WHERE id = ?').run(1, id)
+        }
+        sqlite.exec(cleanupMigration)
+        const row = sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)
+        expect(Boolean(row)).toBe(status === 'active')
+        expect(sqlite.prepare('SELECT id FROM entries WHERE id = ?').get('entry-one')).toBeDefined()
+        expect(sqlite.prepare('PRAGMA index_list(shares)').all().some((index) =>
+          index.name === 'idx_shares_expires_at')).toBe(true)
+      } finally { sqlite.close() }
+    }
+  })
+
+  it('denies expired shares immediately and deletes them on the next cleanup run', async () => {
+    const { sqlite, env } = database()
+    try {
+      const oldId = await seedLegacyShare(sqlite)
+      sqlite.exec(migrate)
+      sqlite.exec(cleanupMigration)
+      const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
+      const now = Date.now()
+      sqlite.prepare('UPDATE shares SET expires_at = ? WHERE id = ?').run(now - 1, oldId)
+
+      const login = await post(env, '/api/admin/login', { password: adminPassword })
+      const cookie = login.headers.get('set-cookie')?.split(';')[0]
+      const active = await post(env, '/api/admin/shares',
+        { entryId: 'entry-one', note: 'Active', expiresInHours: 24 },
+        '203.0.113.10', { Cookie: cookie })
+      const permanent = await post(env, '/api/admin/shares',
+        { entryId: 'entry-one', note: 'Permanent', expiresInHours: 0 },
+        '203.0.113.10', { Cookie: cookie })
+      expect(active.status).toBe(201)
+      expect(permanent.status).toBe(201)
+      const activeId = (await active.json()).id
+      const permanentId = (await permanent.json()).id
+
+      expect((await post(env, '/api/share/' + publicId + '/code')).status).toBe(404)
+      // The expired row is not exposed in the admin list even before cleanup.
+      const adminList = await app.request(origin + '/api/admin/shares', {
+        headers: { Cookie: cookie }
+      }, env)
+      expect((await adminList.json()).shares.map((share) => share.id).sort()).toEqual(
+        [activeId, permanentId].sort()
+      )
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(oldId)).toBeDefined()
+
+      await worker.scheduled({ cron: '*/5 * * * *' }, env, {})
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(oldId)).toBeUndefined()
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(activeId)).toBeDefined()
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(permanentId)).toBeDefined()
+      expect(sqlite.prepare('SELECT id FROM entries WHERE id = ?').get('entry-one')).toBeDefined()
     } finally { sqlite.close() }
   })
 

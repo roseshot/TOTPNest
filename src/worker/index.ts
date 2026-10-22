@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { cleanupExpiredShares } from './share-cleanup'
 import { BOOKMARK_HEADER, openSession, type DbSession } from './db'
 import { JsonBodyError, readJsonObject } from './json'
 import { clearFailures, lockedUntil, recordFailure, PASSWORD_FAILURE_POLICY, SHARE_ID_FAILURE_POLICY, type FailurePolicy } from './abuse'
@@ -283,7 +284,8 @@ app.get('/api/admin/shares', async (c) => {
     (shares.password_hash IS NOT NULL) AS protected,
     entries.issuer, entries.account
     FROM shares JOIN entries ON entries.id = shares.entry_id
-    ORDER BY shares.created_at DESC`).all()
+    WHERE shares.revoked_at IS NULL AND (shares.expires_at IS NULL OR shares.expires_at > ?)
+    ORDER BY shares.created_at DESC`).bind(Date.now()).all()
   return c.json({ shares: rows.results.map((row) => ({
     id: row.id, entryId: row.entry_id, note: row.note, expiresAt: row.expires_at,
     revokedAt: row.revoked_at, createdAt: row.created_at,
@@ -328,8 +330,9 @@ app.get('/api/admin/shares/:id/link', async (c) => {
   return c.json({ url: new URL('/s/' + row.public_id, c.req.url).toString() })
 })
 app.delete('/api/admin/shares/:id', async (c) => {
-  await c.var.db.prepare('UPDATE shares SET revoked_at=? WHERE id=? AND revoked_at IS NULL')
-    .bind(Date.now(), c.req.param('id')).run()
+  // Removing the row immediately revokes the capability on primary-first reads.
+  await c.var.db.prepare('DELETE FROM shares WHERE id = ?')
+    .bind(c.req.param('id')).run()
   return c.json({ ok: true })
 })
 
@@ -383,4 +386,13 @@ app.onError((error, c) => {
 })
 app.notFound((c) => c.json({ error: 'Endpoint not found' }, 404))
 
-export default app
+export { app }
+
+export default {
+  fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
+    return app.fetch(request, env, ctx)
+  },
+  async scheduled(_event: ScheduledController, env: Bindings) {
+    await cleanupExpiredShares(env.DB, Date.now())
+  }
+} satisfies ExportedHandler<Bindings>
