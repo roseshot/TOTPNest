@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="public/totpnest-logo.svg" width="112" alt="TOTPNest blue-and-cyan security nest logo" />
-
-<h1>TOTPNest</h1>
+<h1><img src="public/totpnest-wordmark.svg" width="360" alt="TOTPNest official logo: a four-bar shield above layered blue and cyan nest ribbons, with the TOTPNest wordmark" /></h1>
 
 **Your TOTP codes, safely nested.**
 
@@ -32,7 +30,7 @@ A self-hosted, browser-based authenticator manager for one administrator, with s
 
 ## Interface preview
 
-The vector previews below illustrate the **implemented visual layout** with fictional services, share IDs and codes. They are **not screenshots of production data**. The UI shares a locally hosted [TOTPNest logo](public/totpnest-logo.svg) and blue-to-cyan styling across administrator and visitor experiences.
+The vector previews below illustrate the **implemented visual layout** with fictional services, share IDs and codes. They are **not screenshots of production data**. Each illustration now includes the official [four-bar shield-and-nest symbol](public/totpnest-logo.svg), matching the application UI and favicon.
 
 ### Administrator workspace
 
@@ -165,7 +163,15 @@ Cloudflare documentation: https://developers.cloudflare.com/d1/best-practices/re
 
 ## Appearance and everyday language
 
-The frontend uses the locally hosted `/totpnest-logo.svg` mark throughout the administrator and public views. The layout includes a responsive admin sidebar, a verification-code workspace, and a separate public sharing experience. These changes do not modify TOTP generation, share authorization, or encryption.
+The frontend uses the official four-bar shield-and-nest mark, redrawn as a self-contained SVG from the selected logo artwork. The full wordmark has been outlined into vector paths, so it does not require an external font. The layout includes a responsive admin sidebar, a verification-code workspace, and a separate public sharing experience. Brand updates do not change TOTP generation, share authorization, or encryption.
+
+| Brand asset | Purpose |
+| --- | --- |
+| [`public/totpnest-logo.svg`](public/totpnest-logo.svg) | Official standalone shield-and-nest icon for the app, favicon and mobile public pages. |
+| [`public/totpnest-wordmark.svg`](public/totpnest-wordmark.svg) | Full logo with outlined `TOTPNest` lettering for documentation and project presentation. |
+| [`docs/images/`](docs/images/) | Illustrated interface previews embedding the same official emblem (sample data only). |
+
+All logo and preview SVGs are stored in this repository and do not request external images or fonts.
 
 - Dark and light modes are available on the homepage, shared-code pages, sign-in screen, and administrator dashboard.
 - The first visit follows the system color preference; manual theme choices are saved in the browser and reused on later visits.

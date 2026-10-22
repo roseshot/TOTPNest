@@ -2,21 +2,68 @@
 <defs><linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0348C8"/><stop offset=".62" stop-color="#087BFA"/><stop offset="1" stop-color="#00CCE6"/></linearGradient>
 <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#082461"/><stop offset="1" stop-color="#0357AB"/></linearGradient>
 <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FAFDFF"/><stop offset="1" stop-color="#EAF3FF"/></linearGradient>
-<filter id="shadow" x="-20%" y="-30%" width="150%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1B5091" flood-opacity=".08"/></filter></defs>
+<filter id="shadow" x="-20%" y="-30%" width="150%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1B5091" flood-opacity=".08"/></filter>
+    <linearGradient id="shieldRim" x1="484" y1="195" x2="946" y2="348" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#064ED8"/><stop offset=".46" stop-color="#058DFC"/><stop offset=".96" stop-color="#08D8EB"/>
+    </linearGradient>
+    <linearGradient id="shieldCore" x1="552" y1="207" x2="820" y2="536" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071844"/><stop offset=".58" stop-color="#0D2362"/><stop offset="1" stop-color="#060F35"/>
+    </linearGradient>
+    <linearGradient id="codeBars" x1="583" y1="363" x2="827" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset=".2" stop-color="#D8FAFF"/>
+      <stop offset=".48" stop-color="#6DF3FF"/><stop offset=".75" stop-color="#23E0FA"/>
+      <stop offset="1" stop-color="#01BEEC"/>
+    </linearGradient>
+    <linearGradient id="wingLeft" x1="409" y1="375" x2="658" y2="525" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#149FFE"/><stop offset=".50" stop-color="#0759E5"/>
+      <stop offset="1" stop-color="#0671F2"/>
+    </linearGradient>
+    <linearGradient id="wingRight" x1="1000" y1="363" x2="762" y2="530" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0757E4"/><stop offset=".48" stop-color="#097EFF"/>
+      <stop offset="1" stop-color="#0DC9F3"/>
+    </linearGradient>
+    <linearGradient id="ribbonMid" x1="421" y1="552" x2="999" y2="535" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#082B92"/><stop offset=".38" stop-color="#155EEF"/>
+      <stop offset=".73" stop-color="#0A58DF"/><stop offset="1" stop-color="#10D6EC"/>
+    </linearGradient>
+    <linearGradient id="ribbonLow" x1="417" y1="622" x2="970" y2="645" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#041C77"/><stop offset=".43" stop-color="#0B3DBC"/>
+      <stop offset=".76" stop-color="#0668E9"/><stop offset="1" stop-color="#19C8EB"/>
+    </linearGradient>
+    <linearGradient id="ribbonAccent" x1="455" y1="551" x2="888" y2="642" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#061C83"/><stop offset=".55" stop-color="#1058E9"/><stop offset="1" stop-color="#0589F6"/>
+    </linearGradient>
+  
+  <symbol id="totpnest-brand-symbol" viewBox="392 125 624 612">
+  <!-- The shield remains visible between and behind the ribbons. -->
+  <path fill="url(#shieldRim)" d="M704 147 C692 147 682 152 668 159 L518 232 C496 242 486 256 486 275 L486 361 C539 429 626 493 704 538 C782 493 869 429 922 361 L922 275 C922 256 912 242 890 232 L740 159 C726 152 716 147 704 147Z"/>
+  <path fill="url(#shieldCore)" d="M704 202 C697 202 690 205 676 212 L555 272 C542 279 536 292 536 306 L536 414 C585 455 640 494 704 529 C768 494 823 455 872 414 L872 306 C872 292 866 279 853 272 L732 212 C718 205 711 202 704 202Z"/>
+  <g fill="url(#codeBars)">
+    <rect x="587" y="322" width="34" height="96" rx="17"/>
+    <rect x="654" y="322" width="34" height="96" rx="17"/>
+    <rect x="721" y="322" width="34" height="96" rx="17"/>
+    <rect x="788" y="322" width="34" height="96" rx="17"/>
+  </g>
+  <!-- Low nest ribbon, behind the middle bands. -->
+  <path fill="url(#ribbonLow)" d="M418 535 C472 596 579 646 704 652 C829 646 936 596 990 535 C973 634 858 703 704 707 C550 703 435 634 418 535Z"/>
+  <path fill="url(#ribbonAccent)" d="M417 454 C481 520 581 552 704 556 C827 552 927 520 991 454 C989 502 957 541 908 567 C857 595 792 619 704 622 C616 619 551 595 500 567 C451 541 419 502 417 454Z"/>
+  <!-- The two rising wings embrace the shield and meet near the bottom. -->
+  <path fill="url(#wingLeft)" d="M442 333 C430 349 417 377 417 399 C417 461 467 502 596 529 L656 529 C565 488 484 409 442 333Z"/>
+  <path fill="url(#wingRight)" d="M966 333 C978 349 991 377 991 399 C991 461 941 502 812 529 L752 529 C843 488 924 409 966 333Z"/>
+  <!-- Clean white separator lines reproduce the bright negative-space strokes. -->
+  <path d="M440 327 C497 429 599 507 704 544 C809 507 911 429 968 327" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M417 449 C489 512 586 540 704 546 C822 540 919 512 991 449" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M438 549 C508 610 600 643 704 645 C808 643 900 610 970 549" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round"/>
+</symbol>
+</defs>
 <rect x="0" y="0" width="1120" height="700" rx="0" fill="url(#sky)"/>
 <text x="560" y="56" font-family="Inter,Arial,Helvetica,sans-serif" font-size="28" fill="#123B6C" font-weight="800" text-anchor="middle" >Public sharing · three private steps</text>
 <text x="560" y="81" font-family="Inter,Arial,Helvetica,sans-serif" font-size="15" fill="#6885A6" font-weight="500" text-anchor="middle" >Recipients never see the service name, account, or TOTP setup key.</text>
 <rect x="89" y="125" width="290" height="516" rx="30" fill="#FFFFFF" stroke="#C6D9EE" stroke-width="2"/>
 <rect x="99" y="135" width="270" height="496" rx="25" fill="#FBFDFF"/>
 <rect x="200" y="138" width="68" height="10" rx="5" fill="#203654"/>
-<path d="M121.18 159 L132.36 165.02 L132.36 177.49 L121.18 183.94 L110 177.49 L110 165.02Z" fill="url(#blue)"/>
-<path d="M121.18 162.87 L128.92 167.17 L128.92 175.77 L121.18 180.5 L113.44 175.77 L113.44 167.17Z" fill="#082965"/>
-<path d="M 116.88 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 121.18 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 125.48 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 109.57 177.06 Q 121.18 190.82 132.79 177.06" fill="none" stroke="#0589EA" stroke-width="2.58" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 110.86 180.5 Q 121.18 188.67 131.5 180.5" fill="none" stroke="#A8F5FF" stroke-width="1.505" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="148" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTPNest</text>
+<use href="#totpnest-brand-symbol" x="108.28" y="158.14" width="25.8" height="30.96" aria-hidden="true"/>
+<text x="148" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTP<tspan fill="#087BFA">Nest</tspan></text>
 <rect x="309" y="158" width="50" height="25" rx="12.5" fill="#E9F4FF"/>
 <text x="334" y="175.5" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#1371E7" font-weight="700" text-anchor="middle" >◌</text>
 <text x="113" y="240" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#0D80EB" font-weight="800" text-anchor="start" >SHARED ACCESS</text>
@@ -32,14 +79,8 @@
 <rect x="415" y="125" width="290" height="516" rx="30" fill="#FFFFFF" stroke="#C6D9EE" stroke-width="2"/>
 <rect x="425" y="135" width="270" height="496" rx="25" fill="#FBFDFF"/>
 <rect x="526" y="138" width="68" height="10" rx="5" fill="#203654"/>
-<path d="M447.18 159 L458.36 165.02 L458.36 177.49 L447.18 183.94 L436 177.49 L436 165.02Z" fill="url(#blue)"/>
-<path d="M447.18 162.87 L454.92 167.17 L454.92 175.77 L447.18 180.5 L439.44 175.77 L439.44 167.17Z" fill="#082965"/>
-<path d="M 442.88 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 447.18 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 451.48 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 435.57 177.06 Q 447.18 190.82 458.79 177.06" fill="none" stroke="#0589EA" stroke-width="2.58" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 436.86 180.5 Q 447.18 188.67 457.5 180.5" fill="none" stroke="#A8F5FF" stroke-width="1.505" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="474" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTPNest</text>
+<use href="#totpnest-brand-symbol" x="434.28" y="158.14" width="25.8" height="30.96" aria-hidden="true"/>
+<text x="474" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTP<tspan fill="#087BFA">Nest</tspan></text>
 <rect x="635" y="158" width="50" height="25" rx="12.5" fill="#E9F4FF"/>
 <text x="660" y="175.5" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#1371E7" font-weight="700" text-anchor="middle" >◌</text>
 <text x="439" y="240" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#0D80EB" font-weight="800" text-anchor="start" >PRIVATE SHARING</text>
@@ -56,14 +97,8 @@
 <rect x="741" y="125" width="290" height="516" rx="30" fill="#FFFFFF" stroke="#C6D9EE" stroke-width="2"/>
 <rect x="751" y="135" width="270" height="496" rx="25" fill="#FBFDFF"/>
 <rect x="852" y="138" width="68" height="10" rx="5" fill="#203654"/>
-<path d="M773.18 159 L784.36 165.02 L784.36 177.49 L773.18 183.94 L762 177.49 L762 165.02Z" fill="url(#blue)"/>
-<path d="M773.18 162.87 L780.92 167.17 L780.92 175.77 L773.18 180.5 L765.44 175.77 L765.44 167.17Z" fill="#082965"/>
-<path d="M 768.88 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 773.18 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 777.48 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 761.57 177.06 Q 773.18 190.82 784.79 177.06" fill="none" stroke="#0589EA" stroke-width="2.58" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 762.86 180.5 Q 773.18 188.67 783.5 180.5" fill="none" stroke="#A8F5FF" stroke-width="1.505" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="800" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTPNest</text>
+<use href="#totpnest-brand-symbol" x="760.28" y="158.14" width="25.8" height="30.96" aria-hidden="true"/>
+<text x="800" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTP<tspan fill="#087BFA">Nest</tspan></text>
 <rect x="961" y="158" width="50" height="25" rx="12.5" fill="#E9F4FF"/>
 <text x="986" y="175.5" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#1371E7" font-weight="700" text-anchor="middle" >◌</text>
 <text x="765" y="240" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#0D80EB" font-weight="800" text-anchor="start" >PRIVATE SHARING</text>

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 825" role="img" aria-labelledby="brandTitle brandDesc">
+  <title id="brandTitle">TOTPNest</title>
+  <desc id="brandDesc">The shield-and-nest emblem and official blue TOTPNest wordmark.</desc>
+  <rect width="1040" height="825" rx="22" fill="#FFFFFF"/>
+  <defs>
+    <linearGradient id="shieldRim" x1="484" y1="195" x2="946" y2="348" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#064ED8"/><stop offset=".46" stop-color="#058DFC"/><stop offset=".96" stop-color="#08D8EB"/>
+    </linearGradient>
+    <linearGradient id="shieldCore" x1="552" y1="207" x2="820" y2="536" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071844"/><stop offset=".58" stop-color="#0D2362"/><stop offset="1" stop-color="#060F35"/>
+    </linearGradient>
+    <linearGradient id="codeBars" x1="583" y1="363" x2="827" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset=".2" stop-color="#D8FAFF"/>
+      <stop offset=".48" stop-color="#6DF3FF"/><stop offset=".75" stop-color="#23E0FA"/>
+      <stop offset="1" stop-color="#01BEEC"/>
+    </linearGradient>
+    <linearGradient id="wingLeft" x1="409" y1="375" x2="658" y2="525" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#149FFE"/><stop offset=".50" stop-color="#0759E5"/>
+      <stop offset="1" stop-color="#0671F2"/>
+    </linearGradient>
+    <linearGradient id="wingRight" x1="1000" y1="363" x2="762" y2="530" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0757E4"/><stop offset=".48" stop-color="#097EFF"/>
+      <stop offset="1" stop-color="#0DC9F3"/>
+    </linearGradient>
+    <linearGradient id="ribbonMid" x1="421" y1="552" x2="999" y2="535" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#082B92"/><stop offset=".38" stop-color="#155EEF"/>
+      <stop offset=".73" stop-color="#0A58DF"/><stop offset="1" stop-color="#10D6EC"/>
+    </linearGradient>
+    <linearGradient id="ribbonLow" x1="417" y1="622" x2="970" y2="645" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#041C77"/><stop offset=".43" stop-color="#0B3DBC"/>
+      <stop offset=".76" stop-color="#0668E9"/><stop offset="1" stop-color="#19C8EB"/>
+    </linearGradient>
+    <linearGradient id="ribbonAccent" x1="455" y1="551" x2="888" y2="642" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#061C83"/><stop offset=".55" stop-color="#1058E9"/><stop offset="1" stop-color="#0589F6"/>
+    </linearGradient>
+  
+    <linearGradient id="wordDark" x1="215" y1="780" x2="780" y2="925" gradientUnits="userSpaceOnUse"><stop stop-color="#081d4a"/><stop offset="1" stop-color="#06183d"/></linearGradient>
+    <linearGradient id="wordBlue" x1="795" y1="780" x2="1232" y2="925" gradientUnits="userSpaceOnUse"><stop stop-color="#0baafd"/><stop offset=".55" stop-color="#0877ff"/><stop offset="1" stop-color="#035be8"/></linearGradient>
+  </defs>
+  <g transform="translate(-198 -135)">
+  <!-- The shield remains visible between and behind the ribbons. -->
+  <path fill="url(#shieldRim)" d="M704 147 C692 147 682 152 668 159 L518 232 C496 242 486 256 486 275 L486 361 C539 429 626 493 704 538 C782 493 869 429 922 361 L922 275 C922 256 912 242 890 232 L740 159 C726 152 716 147 704 147Z"/>
+  <path fill="url(#shieldCore)" d="M704 202 C697 202 690 205 676 212 L555 272 C542 279 536 292 536 306 L536 414 C585 455 640 494 704 529 C768 494 823 455 872 414 L872 306 C872 292 866 279 853 272 L732 212 C718 205 711 202 704 202Z"/>
+  <g fill="url(#codeBars)">
+    <rect x="587" y="322" width="34" height="96" rx="17"/>
+    <rect x="654" y="322" width="34" height="96" rx="17"/>
+    <rect x="721" y="322" width="34" height="96" rx="17"/>
+    <rect x="788" y="322" width="34" height="96" rx="17"/>
+  </g>
+  <!-- Low nest ribbon, behind the middle bands. -->
+  <path fill="url(#ribbonLow)" d="M418 535 C472 596 579 646 704 652 C829 646 936 596 990 535 C973 634 858 703 704 707 C550 703 435 634 418 535Z"/>
+  <path fill="url(#ribbonAccent)" d="M417 454 C481 520 581 552 704 556 C827 552 927 520 991 454 C989 502 957 541 908 567 C857 595 792 619 704 622 C616 619 551 595 500 567 C451 541 419 502 417 454Z"/>
+  <!-- The two rising wings embrace the shield and meet near the bottom. -->
+  <path fill="url(#wingLeft)" d="M442 333 C430 349 417 377 417 399 C417 461 467 502 596 529 L656 529 C565 488 484 409 442 333Z"/>
+  <path fill="url(#wingRight)" d="M966 333 C978 349 991 377 991 399 C991 461 941 502 812 529 L752 529 C843 488 924 409 966 333Z"/>
+  <!-- Clean white separator lines reproduce the bright negative-space strokes. -->
+  <path d="M440 327 C497 429 599 507 704 544 C809 507 911 429 968 327" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M417 449 C489 512 586 540 704 546 C822 540 919 512 991 449" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M438 549 C508 610 600 643 704 645 C808 643 900 610 970 549" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round"/>
+</g>
+  <g transform="translate(-198 -135)"><path fill="url(#wordDark)" fill-rule="evenodd" d="M 752 784 L 741 780 L 728 778 L 655 778 L 653 779 L 652 781 L 652 924 L 653 926 L 686 927 L 689 923 L 689 882 L 690 881 L 731 881 L 742 879 L 759 871 L 770 860 L 775 851 L 778 840 L 779 831 L 778 819 L 774 806 L 769 798 L 760 789 Z M 689 809 L 690 808 L 722 808 L 730 810 L 738 817 L 741 824 L 741 836 L 739 841 L 731 849 L 725 851 L 690 851 L 689 850 Z M 513 779 L 512 781 L 513 782 L 512 800 L 513 808 L 554 808 L 556 813 L 556 911 L 555 912 L 556 925 L 559 927 L 590 927 L 592 925 L 592 810 L 594 808 L 635 808 L 636 807 L 636 780 L 634 778 L 515 778 Z M 217 778 L 215 780 L 215 807 L 216 808 L 257 808 L 258 809 L 258 923 L 261 927 L 294 926 L 295 924 L 295 810 L 297 808 L 338 808 L 339 807 L 339 780 L 337 778 Z M 423 776 L 409 778 L 392 784 L 379 792 L 370 800 L 360 813 L 354 825 L 350 839 L 349 860 L 352 875 L 360 893 L 377 912 L 391 921 L 401 925 L 421 929 L 435 929 L 448 927 L 462 922 L 474 915 L 485 906 L 494 895 L 501 881 L 505 868 L 506 845 L 503 830 L 497 816 L 488 803 L 479 794 L 469 787 L 450 779 L 441 777 Z M 420 811 L 436 811 L 450 817 L 461 828 L 466 837 L 468 844 L 468 862 L 463 875 L 451 888 L 444 892 L 434 895 L 417 894 L 406 889 L 395 879 L 390 870 L 387 860 L 387 846 L 389 838 L 395 827 L 407 816 Z"/>
+<path fill="url(#wordBlue)" fill-rule="evenodd" d="M 1115 812 L 1099 816 L 1093 819 L 1084 827 L 1078 839 L 1077 845 L 1078 857 L 1084 868 L 1091 874 L 1130 887 L 1134 891 L 1134 896 L 1128 902 L 1122 904 L 1114 904 L 1099 900 L 1088 893 L 1085 893 L 1073 910 L 1073 914 L 1097 926 L 1107 928 L 1128 928 L 1139 925 L 1147 921 L 1155 914 L 1162 900 L 1161 881 L 1158 875 L 1145 864 L 1131 859 L 1117 856 L 1108 852 L 1106 849 L 1106 844 L 1111 839 L 1122 837 L 1135 840 L 1148 846 L 1159 829 L 1159 826 L 1151 820 L 1136 814 Z M 993 814 L 982 818 L 972 824 L 965 830 L 956 842 L 951 853 L 949 863 L 949 879 L 952 890 L 956 899 L 964 910 L 975 919 L 987 925 L 999 928 L 1022 928 L 1034 925 L 1051 916 L 1060 907 L 1060 905 L 1041 891 L 1030 899 L 1018 903 L 1000 902 L 987 894 L 983 889 L 981 882 L 982 881 L 1066 881 L 1067 880 L 1067 860 L 1065 852 L 1057 836 L 1049 827 L 1041 821 L 1031 816 L 1020 813 L 1006 812 Z M 980 859 L 983 852 L 990 844 L 1004 838 L 1015 838 L 1027 843 L 1033 849 L 1037 857 L 1036 860 L 981 860 Z M 1180 781 L 1178 783 L 1178 812 L 1169 813 L 1167 815 L 1167 837 L 1178 839 L 1178 901 L 1183 914 L 1191 922 L 1199 926 L 1207 928 L 1222 928 L 1232 926 L 1233 901 L 1231 899 L 1214 900 L 1210 897 L 1208 893 L 1208 839 L 1209 838 L 1231 838 L 1233 835 L 1233 816 L 1230 813 L 1209 813 L 1208 812 L 1208 784 L 1206 781 Z M 800 778 L 798 780 L 798 925 L 800 927 L 827 927 L 828 926 L 829 919 L 828 835 L 830 831 L 907 927 L 934 927 L 935 926 L 935 780 L 933 778 L 907 778 L 905 780 L 905 874 L 904 875 L 826 778 Z"/></g>
+</svg>

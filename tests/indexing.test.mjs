@@ -35,9 +35,31 @@ describe('site-wide noindex and branded UI', () => {
     expect(css).toContain('@media (prefers-reduced-motion: reduce)')
     expect(brand).toContain('src="/totpnest-logo.svg"')
     expect(svg).toContain('<linearGradient')
-    expect(svg).toContain('TOTPNest security nest mark')
+    expect(svg).toContain('TOTPNest shield and nest symbol')
+    expect(svg).toContain('id="codeBars"')
+    expect((svg.match(/<rect x="(?:587|654|721|788)"/g) || [])).toHaveLength(4)
+    const wordmark = load('../public/totpnest-wordmark.svg')
+    expect(wordmark).toContain('id="wordBlue"')
+    expect(wordmark).toContain('fill-rule="evenodd"')
+    expect(wordmark).not.toContain('<text')
+    const readme = load('../README.md')
+    expect(readme).toContain('src="public/totpnest-wordmark.svg"')
   })
 
+
+  it('keeps the official emblem in every documentation preview', () => {
+    const previews = [
+      'dashboard-preview.svg', 'admin-login-preview.svg',
+      'add-code-preview.svg', 'public-share-preview.svg'
+    ]
+    for (const filename of previews) {
+      const graphic = load('../docs/images/' + filename)
+      expect(graphic).toContain('id="totpnest-brand-symbol"')
+      expect(graphic).toContain('href="#totpnest-brand-symbol"')
+      expect(graphic).toContain('id="codeBars"')
+      expect(graphic).not.toContain('stroke="#A8F5FF"')
+    }
+  })
 
   it('does not expose links to administration from public screens', () => {
     const app = load('../src/client/App.tsx')

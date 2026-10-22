@@ -2,19 +2,66 @@
 <defs><linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0348C8"/><stop offset=".62" stop-color="#087BFA"/><stop offset="1" stop-color="#00CCE6"/></linearGradient>
 <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#082461"/><stop offset="1" stop-color="#0357AB"/></linearGradient>
 <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FAFDFF"/><stop offset="1" stop-color="#EAF3FF"/></linearGradient>
-<filter id="shadow" x="-20%" y="-30%" width="150%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1B5091" flood-opacity=".08"/></filter></defs>
+<filter id="shadow" x="-20%" y="-30%" width="150%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1B5091" flood-opacity=".08"/></filter>
+    <linearGradient id="shieldRim" x1="484" y1="195" x2="946" y2="348" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#064ED8"/><stop offset=".46" stop-color="#058DFC"/><stop offset=".96" stop-color="#08D8EB"/>
+    </linearGradient>
+    <linearGradient id="shieldCore" x1="552" y1="207" x2="820" y2="536" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071844"/><stop offset=".58" stop-color="#0D2362"/><stop offset="1" stop-color="#060F35"/>
+    </linearGradient>
+    <linearGradient id="codeBars" x1="583" y1="363" x2="827" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset=".2" stop-color="#D8FAFF"/>
+      <stop offset=".48" stop-color="#6DF3FF"/><stop offset=".75" stop-color="#23E0FA"/>
+      <stop offset="1" stop-color="#01BEEC"/>
+    </linearGradient>
+    <linearGradient id="wingLeft" x1="409" y1="375" x2="658" y2="525" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#149FFE"/><stop offset=".50" stop-color="#0759E5"/>
+      <stop offset="1" stop-color="#0671F2"/>
+    </linearGradient>
+    <linearGradient id="wingRight" x1="1000" y1="363" x2="762" y2="530" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0757E4"/><stop offset=".48" stop-color="#097EFF"/>
+      <stop offset="1" stop-color="#0DC9F3"/>
+    </linearGradient>
+    <linearGradient id="ribbonMid" x1="421" y1="552" x2="999" y2="535" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#082B92"/><stop offset=".38" stop-color="#155EEF"/>
+      <stop offset=".73" stop-color="#0A58DF"/><stop offset="1" stop-color="#10D6EC"/>
+    </linearGradient>
+    <linearGradient id="ribbonLow" x1="417" y1="622" x2="970" y2="645" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#041C77"/><stop offset=".43" stop-color="#0B3DBC"/>
+      <stop offset=".76" stop-color="#0668E9"/><stop offset="1" stop-color="#19C8EB"/>
+    </linearGradient>
+    <linearGradient id="ribbonAccent" x1="455" y1="551" x2="888" y2="642" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#061C83"/><stop offset=".55" stop-color="#1058E9"/><stop offset="1" stop-color="#0589F6"/>
+    </linearGradient>
+  
+  <symbol id="totpnest-brand-symbol" viewBox="392 125 624 612">
+  <!-- The shield remains visible between and behind the ribbons. -->
+  <path fill="url(#shieldRim)" d="M704 147 C692 147 682 152 668 159 L518 232 C496 242 486 256 486 275 L486 361 C539 429 626 493 704 538 C782 493 869 429 922 361 L922 275 C922 256 912 242 890 232 L740 159 C726 152 716 147 704 147Z"/>
+  <path fill="url(#shieldCore)" d="M704 202 C697 202 690 205 676 212 L555 272 C542 279 536 292 536 306 L536 414 C585 455 640 494 704 529 C768 494 823 455 872 414 L872 306 C872 292 866 279 853 272 L732 212 C718 205 711 202 704 202Z"/>
+  <g fill="url(#codeBars)">
+    <rect x="587" y="322" width="34" height="96" rx="17"/>
+    <rect x="654" y="322" width="34" height="96" rx="17"/>
+    <rect x="721" y="322" width="34" height="96" rx="17"/>
+    <rect x="788" y="322" width="34" height="96" rx="17"/>
+  </g>
+  <!-- Low nest ribbon, behind the middle bands. -->
+  <path fill="url(#ribbonLow)" d="M418 535 C472 596 579 646 704 652 C829 646 936 596 990 535 C973 634 858 703 704 707 C550 703 435 634 418 535Z"/>
+  <path fill="url(#ribbonAccent)" d="M417 454 C481 520 581 552 704 556 C827 552 927 520 991 454 C989 502 957 541 908 567 C857 595 792 619 704 622 C616 619 551 595 500 567 C451 541 419 502 417 454Z"/>
+  <!-- The two rising wings embrace the shield and meet near the bottom. -->
+  <path fill="url(#wingLeft)" d="M442 333 C430 349 417 377 417 399 C417 461 467 502 596 529 L656 529 C565 488 484 409 442 333Z"/>
+  <path fill="url(#wingRight)" d="M966 333 C978 349 991 377 991 399 C991 461 941 502 812 529 L752 529 C843 488 924 409 966 333Z"/>
+  <!-- Clean white separator lines reproduce the bright negative-space strokes. -->
+  <path d="M440 327 C497 429 599 507 704 544 C809 507 911 429 968 327" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M417 449 C489 512 586 540 704 546 C822 540 919 512 991 449" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M438 549 C508 610 600 643 704 645 C808 643 900 610 970 549" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round"/>
+</symbol>
+</defs>
 <rect x="0" y="0" width="1200" height="665" rx="0" fill="url(#sky)"/>
 <rect x="105" y="50" width="990" height="550" rx="28" fill="#FFFFFF" stroke="#DAE9FA" stroke-width="1"/>
 <rect x="105" y="50" width="445" height="550" rx="28" fill="url(#navy)"/>
 <rect x="518" y="50" width="32" height="550" rx="0" fill="url(#navy)"/>
-<path d="M162.9 91 L179.8 100.1 L179.8 118.95 L162.9 128.7 L146 118.95 L146 100.1Z" fill="url(#blue)"/>
-<path d="M162.9 96.85 L174.6 103.35 L174.6 116.35 L162.9 123.5 L151.2 116.35 L151.2 103.35Z" fill="#082965"/>
-<path d="M 156.4 105.95 v 11.05" fill="none" stroke="#60E5FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 162.9 105.95 v 11.05" fill="none" stroke="#60E5FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 169.4 105.95 v 11.05" fill="none" stroke="#60E5FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 145.35 118.3 Q 162.9 139.1 180.45 118.3" fill="none" stroke="#0589EA" stroke-width="3.9000000000000004" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 147.3 123.5 Q 162.9 135.85 178.5 123.5" fill="none" stroke="#A8F5FF" stroke-width="2.275" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="197" y="131" font-family="Inter,Arial,Helvetica,sans-serif" font-size="25" fill="#FFFFFF" font-weight="780" text-anchor="start" >TOTPNest</text>
+<use href="#totpnest-brand-symbol" x="143.4" y="89.7" width="39" height="46.8" aria-hidden="true"/>
+<text x="197" y="131" font-family="Inter,Arial,Helvetica,sans-serif" font-size="25" fill="#FFFFFF" font-weight="780" text-anchor="start" >TOTP<tspan fill="#71E7FF">Nest</tspan></text>
 <text x="155" y="250" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#9FECFF" font-weight="790" text-anchor="start" >YOUR PRIVATE WORKSPACE</text>
 <text x="155" y="294" font-family="Inter,Arial,Helvetica,sans-serif" font-size="36" fill="#FFFFFF" font-weight="800" text-anchor="start" >Every code has</text>
 <text x="155" y="337" font-family="Inter,Arial,Helvetica,sans-serif" font-size="36" fill="#FFFFFF" font-weight="800" text-anchor="start" >a secure place.</text>
@@ -29,13 +76,7 @@
 <rect x="155" y="512" width="26" height="26" rx="8" fill="#176FD2"/>
 <text x="168" y="530" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#ACF5FF" font-weight="700" text-anchor="middle" >03</text>
 <text x="195" y="530" font-family="Inter,Arial,Helvetica,sans-serif" font-size="14" fill="#D9EEFF" font-weight="500" text-anchor="start" >Single-administrator access</text>
-<path d="M779 115 L805 129 L805 158 L779 173 L753 158 L753 129Z" fill="url(#blue)"/>
-<path d="M779 124 L797 134 L797 154 L779 165 L761 154 L761 134Z" fill="#082965"/>
-<path d="M 769 138 v 17" fill="none" stroke="#60E5FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 779 138 v 17" fill="none" stroke="#60E5FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 789 138 v 17" fill="none" stroke="#60E5FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 752 157 Q 779 189 806 157" fill="none" stroke="#0589EA" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M 755 165 Q 779 184 803 165" fill="none" stroke="#A8F5FF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+<use href="#totpnest-brand-symbol" x="749" y="113" width="60" height="72" aria-hidden="true"/>
 <text x="752" y="276" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#0E7BEE" font-weight="760" text-anchor="start" >ADMIN ACCESS</text>
 <text x="752" y="322" font-family="Inter,Arial,Helvetica,sans-serif" font-size="33" fill="#10376D" font-weight="800" text-anchor="start" >Welcome back</text>
 <text x="752" y="358" font-family="Inter,Arial,Helvetica,sans-serif" font-size="14" fill="#7890AA" font-weight="500" text-anchor="start" >Sign in with your administrator password.</text>
