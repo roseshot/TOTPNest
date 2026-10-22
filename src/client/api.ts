@@ -24,7 +24,7 @@ export class ApiFailure extends Error {
 }
 
 export async function request<T>(
-  path: string, options: { method?: string; body?: unknown; token?: string; unlock?: string } = {}
+  path: string, options: { method?: string; body?: unknown; token?: string; unlock?: string; signal?: AbortSignal } = {}
 ): Promise<T> {
   const headers: Record<string, string> = {}
   const method = options.method || 'GET'
@@ -38,6 +38,7 @@ export async function request<T>(
   try {
     response = await fetch(path, {
       method,
+      signal: options.signal,
       headers,
       credentials: 'same-origin',
       cache: 'no-store',

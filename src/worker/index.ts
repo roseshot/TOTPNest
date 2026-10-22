@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import { BOOKMARK_HEADER, openSession, type DbSession } from './db'
+import { JsonBodyError, readJsonObject } from './json'
 import type { Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
-import { constantTimeEqual, decrypt, encrypt, issueUnlock, randomToken, sha256, sharePasswordHash, verifyUnlock } from './crypto'
+import { constantTimeEqual, decrypt, encrypt, issueUnlock, randomToken, sha256, sharePasswordHash, unbase64url, verifyUnlock } from './crypto'
 import { normalizeSecret, totpAt, windowAt, type TotpAlgorithm } from './totp'
 
-type Bindings = { DB: D1Database; ADMIN_PASSWORD: string; DATA_ENCRYPTION_KEY: string }
+type Bindings = { DB: D1Database; ADMIN_PASSWORD: string; DATA_ENCRYPTION_KEY: string; PUBLIC_CODE_RATE_LIMITER: RateLimit }
 type Environment = { Bindings: Bindings; Variables: { db: DbSession } }
 type Ctx = Context<Environment>
 type Entry = {
@@ -29,8 +30,12 @@ const SESSION_MS = 7 * 24 * 60 * 60_000
 const NEXT_THRESHOLD_MS = 5_000
 
 function requireConfig(c: Ctx) {
-  if (!c.env.ADMIN_PASSWORD || c.env.ADMIN_PASSWORD.length < MIN_PASSWORD_LENGTH ||
-      !c.env.DATA_ENCRYPTION_KEY) throw new ApiError(503, 'The service is missing required encryption secrets')
+  let validKey = false
+  try { validKey = unbase64url(c.env.DATA_ENCRYPTION_KEY || '').length === 32 }
+  catch { /* Invalid encryption key. */ }
+  if (!c.env.ADMIN_PASSWORD || c.env.ADMIN_PASSWORD.length < MIN_PASSWORD_LENGTH || !validKey) {
+    throw new ApiError(503, 'The service is missing required encryption secrets')
+  }
 }
 function cookieName(c: Ctx) {
   return new URL(c.req.url).protocol === 'https:' ? '__Host-totpnest' : 'totpnest_local'
@@ -41,12 +46,11 @@ function bearer(c: Ctx): string {
   return match[1]
 }
 async function jsonBody(c: Ctx): Promise<Record<string, unknown>> {
-  const raw = await c.req.text()
-  if (raw.length > 8192) throw new ApiError(413, 'Request body is too large')
-  let value: unknown
-  try { value = JSON.parse(raw) } catch { throw new ApiError(400, 'Invalid JSON') }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiError(400, 'Invalid request payload')
-  return value as Record<string, unknown>
+  try { return await readJsonObject(c.req.raw) }
+  catch (error) {
+    if (error instanceof JsonBodyError) throw new ApiError(error.status, error.message)
+    throw error
+  }
 }
 function limitedString(value: unknown, max: number, field: string) {
   if (typeof value !== 'string' || value.trim().length > max) throw new ApiError(400, field + ' is invalid')
@@ -112,6 +116,13 @@ async function rateLimit(c: Ctx, name: string, limit: number, windowMs: number) 
 async function visitorIp(c: Ctx): Promise<string> {
   return sha256(c.req.header('CF-Connecting-IP') || 'unknown')
 }
+async function requirePublicCodeRateLimit(c: Ctx) {
+  const id = c.req.param('id')
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new ApiError(404, 'Link unavailable', 'SHARE_UNAVAILABLE')
+  // This fast, approximate per-location limit protects D1 reads; password attempts remain D1-limited.
+  const { success } = await c.env.PUBLIC_CODE_RATE_LIMITER.limit({ key: id + ':' + await visitorIp(c) })
+  if (!success) throw new ApiError(429, 'Too many requests. Please try again later', 'RATE_LIMIT')
+}
 async function getShare(c: Ctx): Promise<{ share: Share; tokenHash: string }> {
   const token = bearer(c)
   const row = await c.var.db.prepare('SELECT * FROM shares WHERE id = ?')
@@ -131,7 +142,7 @@ async function requireUnlocked(c: Ctx, share: Share, tokenHash: string) {
     throw new ApiError(401, 'Share password required', 'PASSWORD_REQUIRED')
   }
 }
-async function codeFor(c: Ctx, shareId: string | null, entry: Entry, next = false) {
+async function codeFor(c: Ctx, entry: Entry, next = false) {
   const now = Date.now()
   const w = windowAt(entry.period, now)
   let requestedWindow = w
@@ -255,11 +266,11 @@ app.delete('/api/admin/entries/:id', async (c) => {
 })
 app.post('/api/admin/entries/:id/code', async (c) => {
   requireConfig(c)
-  return codeFor(c, null, await getEntry(c, c.req.param('id')))
+  return codeFor(c, await getEntry(c, c.req.param('id')))
 })
 app.post('/api/admin/entries/:id/next', async (c) => {
   requireConfig(c)
-  return codeFor(c, null, await getEntry(c, c.req.param('id')), true)
+  return codeFor(c, await getEntry(c, c.req.param('id')), true)
 })
 
 app.get('/api/admin/shares', async (c) => {
@@ -333,15 +344,17 @@ app.post('/api/share/:id/unlock', async (c) => {
 })
 app.post('/api/share/:id/code', async (c) => {
   requireConfig(c)
+  await requirePublicCodeRateLimit(c)
   const { share, tokenHash } = await getShare(c)
   await requireUnlocked(c, share, tokenHash)
-  return codeFor(c, share.id, await getEntry(c, share.entry_id))
+  return codeFor(c, await getEntry(c, share.entry_id))
 })
 app.post('/api/share/:id/next', async (c) => {
   requireConfig(c)
+  await requirePublicCodeRateLimit(c)
   const { share, tokenHash } = await getShare(c)
   await requireUnlocked(c, share, tokenHash)
-  return codeFor(c, share.id, await getEntry(c, share.entry_id), true)
+  return codeFor(c, await getEntry(c, share.entry_id), true)
 })
 
 app.onError((error, c) => {
@@ -350,7 +363,9 @@ app.onError((error, c) => {
   const code = error instanceof ApiError ? error.code : 'INTERNAL_ERROR'
   return new Response(JSON.stringify({ error: message, code }), {
     status, headers: { 'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }
+      'Cache-Control': 'no-store, private', 'Pragma': 'no-cache',
+      'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
+      'X-Robots-Tag': 'noindex, nofollow' }
   })
 })
 app.notFound((c) => c.json({ error: 'Endpoint not found' }, 404))

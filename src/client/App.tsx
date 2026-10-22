@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ChangeE
 import jsQR from 'jsqr'
 import { ApiFailure, copyText, request } from './api'
 import { CodePanel } from './CodePanel'
+import { parseOtpUri, type EntryDraft } from './otp-uri'
 
 type Entry = {
   id: string; issuer: string; account: string; algorithm: 'SHA1' | 'SHA256' | 'SHA512';
@@ -11,10 +12,6 @@ type Share = {
   id: string; entryId: string; issuer: string; account: string; protected: boolean;
   note: string; expiresAt: number | null; revokedAt: number | null; createdAt: number
 }
-type EntryDraft = {
-  issuer: string; account: string; secret: string;
-  algorithm: 'SHA1' | 'SHA256' | 'SHA512'; digits: 6 | 8; period: number
-}
 const emptyDraft: EntryDraft = { issuer: '', account: '', secret: '', algorithm: 'SHA1', digits: 6, period: 30 }
 
 function message(error: unknown): string {
@@ -23,38 +20,25 @@ function message(error: unknown): string {
 function formattedDate(timestamp: number | null): string {
   return timestamp ? new Date(timestamp).toLocaleString('en-US') : 'Never'
 }
-function parseOtpUri(value: string): EntryDraft {
-  const uri = new URL(value.trim())
-  if (uri.protocol !== 'otpauth:' || uri.hostname.toLowerCase() !== 'totp') throw new Error('Only otpauth://totp links are supported')
-  const params = uri.searchParams
-  const label = decodeURIComponent(uri.pathname.replace(/^\//, ''))
-  const colon = label.indexOf(':')
-  const issuer = params.get('issuer') || (colon >= 0 ? label.slice(0, colon) : '')
-  const account = colon >= 0 ? label.slice(colon + 1).trim() : label
-  const algorithm = (params.get('algorithm') || 'SHA1').replace('-', '').toUpperCase()
-  const digits = Number(params.get('digits') || 6)
-  const period = Number(params.get('period') || 30)
-  if (!['SHA1', 'SHA256', 'SHA512'].includes(algorithm) || (digits !== 6 && digits !== 8) ||
-      !Number.isInteger(period) || period < 15 || period > 120 || !params.get('secret')) {
-    throw new Error('Invalid TOTP parameters in the QR code')
-  }
-  return { issuer, account, secret: params.get('secret')!, algorithm: algorithm as EntryDraft['algorithm'],
-    digits: digits as EntryDraft['digits'], period }
-}
 async function importQr(file: File): Promise<EntryDraft> {
+  if (file.size > 10 * 1024 * 1024) throw new Error('QR image must be 10 MB or smaller')
   const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height))
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) throw new Error('Could not read the QR code image')
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  bitmap.close()
-  const pixels = context.getImageData(0, 0, canvas.width, canvas.height)
-  const result = jsQR(pixels.data, pixels.width, pixels.height)
-  if (!result) throw new Error('No QR code detected. Try a clearer image')
-  return parseOtpUri(result.data)
+  try {
+    if (bitmap.width * bitmap.height > 20_000_000) throw new Error('QR image is too large')
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) throw new Error('Could not read the QR code image')
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height)
+    const result = jsQR(pixels.data, pixels.width, pixels.height)
+    if (!result) throw new Error('No QR code detected. Try a clearer image')
+    return parseOtpUri(result.data)
+  } finally {
+    bitmap.close()
+  }
 }
 
 function SharePage({ id }: { id: string }) {

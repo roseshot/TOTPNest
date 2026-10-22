@@ -19,10 +19,12 @@ function display(code: string): string {
 export function CodePanel({ endpoint, token, unlock, onAuthError }: Props) {
   const [current, setCurrent] = useState<CodeFrame | null>(null)
   const [next, setNext] = useState<CodeWindow | null>(null)
-  const [tick, setTick] = useState(0)
+  const [tick, setTick] = useState(() => performance.now())
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const flight = useRef(false)
+  const controller = useRef<AbortController | null>(null)
+  const generation = useRef(0)
   const requestedFor = useRef<number | null>(null)
   const retryAt = useRef(0)
   const active = useRef(true)
@@ -38,62 +40,88 @@ export function CodePanel({ endpoint, token, unlock, onAuthError }: Props) {
     retryAt.current = 0
   }, [])
 
-  const send = useCallback((suffix: 'code' | 'next', expectedExpiry?: number) => request<CodeWindow>(
-    endpoint + '/' + suffix, {
-      method: 'POST', token, unlock,
+  const send = useCallback((suffix: 'code' | 'next', expectedExpiry?: number, signal?: AbortSignal) =>
+    request<CodeWindow>(endpoint + '/' + suffix, {
+      method: 'POST', token, unlock, signal,
       ...(suffix === 'next' ? { body: { expectedExpiry } } : {})
     }), [endpoint, token, unlock])
 
   const fetchCurrent = useCallback(async () => {
     if (flight.current) return
+    const version = generation.current
+    const abort = new AbortController()
+    controller.current = abort
     flight.current = true
     try {
       const startedAt = performance.now()
-      const frame = await send('code')
+      const frame = await send('code', undefined, abort.signal)
+      if (version !== generation.current || !active.current) return
       // Approximate one-way latency; the countdown is anchored to server time.
       applyCurrent({ ...frame, serverNow: frame.serverNow + (performance.now() - startedAt) / 2 })
     } catch (failure) {
-      if (active.current) {
+      if (version === generation.current && active.current) {
         const err = failure as ApiFailure
         setError(err.message)
         authError.current?.(err)
         retryAt.current = performance.now() + 3_000
       }
-    } finally { flight.current = false }
+    } finally {
+      if (version === generation.current) {
+        flight.current = false
+        controller.current = null
+      }
+    }
   }, [applyCurrent, send])
 
   const fetchNext = useCallback(async (expiry: number) => {
     if (flight.current) return
+    const version = generation.current
+    const abort = new AbortController()
+    controller.current = abort
     flight.current = true
     requestedFor.current = expiry
     try {
       const startedAt = performance.now()
-      const frame = await send('next', expiry)
-      if (!active.current) return
+      const frame = await send('next', expiry, abort.signal)
+      if (version !== generation.current || !active.current) return
       const adjusted = { ...frame, serverNow: frame.serverNow + (performance.now() - startedAt) / 2 }
       if (frame.kind === 'current') applyCurrent(adjusted)
       else { setNext(frame); setError('') }
     } catch (failure) {
-      if (active.current) {
+      if (version === generation.current && active.current) {
         const err = failure as ApiFailure
         setError(err.code === 'TOO_EARLY' ? '' : err.message)
         authError.current?.(err)
         requestedFor.current = null
         retryAt.current = performance.now() + 1_500
       }
-    } finally { flight.current = false }
+    } finally {
+      if (version === generation.current) {
+        flight.current = false
+        controller.current = null
+      }
+    }
   }, [send, applyCurrent])
 
   useEffect(() => {
+    const version = ++generation.current
     active.current = true
     flight.current = false
     requestedFor.current = null
     retryAt.current = 0
+    setTick(performance.now())
     setCurrent(null)
     setNext(null)
     setError('')
     void fetchCurrent()
-    return () => { active.current = false }
+    return () => {
+      if (generation.current !== version) return
+      generation.current++
+      active.current = false
+      controller.current?.abort()
+      controller.current = null
+      flight.current = false
+    }
   }, [fetchCurrent])
 
   useEffect(() => {

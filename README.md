@@ -16,6 +16,7 @@ A **browser-only, single-administrator TOTP manager** built on Cloudflare Worker
 - The initial request fetches only the **current code**. The page requests the **next code** only during the **final five seconds** of the current period.
 - The next code is visibly marked as **not yet active**, and the copy button always copies the currently valid code.
 - The browser updates the countdown locally; no per-second API polling or WebSocket is required.
+- Share-code endpoints have a Cloudflare-native rate limit to reduce abusive D1 reads without using D1 writes for each code view.
 
 ## Stack
 
@@ -128,7 +129,9 @@ A next code preview may **not be accepted** by the target service before its tim
 - Share tokens are 256-bit random values. Their hashes are stored in D1; an AES-GCM-encrypted copy is retained so the administrator can copy an active link again.
 - Protected-share passwords use a purpose-separated, keyed HMAC verifier derived from the Worker encryption secret. Each share has a distinct identifier. Worker and D1 rate limits discourage online guessing; **use a strong share password**.
 - Successful password unlocks issue a short-lived 15-minute ticket bound to the share and its bearer token. The browser keeps the ticket in session storage only.
-- APIs check request origin, avoid cross-origin access, limit request sizes, and disable caching. Static assets include a content security policy, no-referrer policy, and search-indexing restrictions.
+- APIs check request origin, avoid cross-origin access, stream and cap JSON request bodies at 8 KiB, and disable caching.
+- The Cloudflare rate-limiting binding caps share-code traffic at approximately 120 requests per minute per share and visitor IP, per Cloudflare location. Limits are approximate rather than globally strict; the existing D1-backed password-attempt limits remain authoritative. Configure edge security rules for additional abuse protection.
+- QR imports are limited to 10 MiB files and 20-megapixel images. TOTP imports require canonical Base32 lengths and padding bits. Static assets include a content security policy, no-referrer policy, and search-indexing restrictions.
 - **Revocation cannot invalidate codes already delivered.** Replacing a compromised TOTP secret requires reconfiguring 2FA at the underlying service.
 - There is no offline code generation; if the Worker or its dependencies are unavailable, fresh codes cannot be retrieved.
 - The Free plan has resource and CPU limits. For significant public-sharing traffic, apply additional edge-level access rules.
@@ -153,7 +156,7 @@ Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing en
 npm run check
 ```
 
-The CI pipeline only validates code: TypeScript type checking, RFC 6238 and cryptography tests, D1 Sessions API routing/bookmark tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
 
 ## API overview
 

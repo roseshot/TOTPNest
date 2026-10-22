@@ -4,11 +4,22 @@ export type TotpConfig = { algorithm: TotpAlgorithm; digits: 6 | 8; period: numb
 
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
-export function decodeBase32(value: string): Uint8Array<ArrayBuffer> {
-  const clean = value.trim().toUpperCase().replace(/[\s-]/g, '').replace(/=+$/, '')
-  if (!clean || !/^[A-Z2-7]+$/.test(clean) || clean.length % 8 === 1) {
-    throw new Error('TOTP secret must use valid Base32 encoding')
+function canonicalBase32(value: string): string {
+  const compact = value.toUpperCase().replace(/[\s-]/g, '')
+  const match = /^([A-Z2-7]+)(=*)$/.exec(compact)
+  if (!match) throw new Error('TOTP secret must use valid Base32 encoding')
+  const unpadded = match[1]
+  const remainder = unpadded.length % 8
+  // RFC 4648 permits only 0, 2, 4, 5, or 7 symbols in the final block.
+  if (![0, 2, 4, 5, 7].includes(remainder) ||
+      (match[2].length > 0 && match[2].length !== (8 - remainder) % 8)) {
+    throw new Error('Invalid Base32 padding')
   }
+  return unpadded
+}
+
+export function decodeBase32(value: string): Uint8Array<ArrayBuffer> {
+  const clean = canonicalBase32(value)
   const result: number[] = []
   let bits = 0
   let buffer = 0
@@ -27,7 +38,7 @@ export function decodeBase32(value: string): Uint8Array<ArrayBuffer> {
 }
 
 export function normalizeSecret(value: string): string {
-  const normalized = value.toUpperCase().replace(/[\s-]/g, '').replace(/=+$/, '')
+  const normalized = canonicalBase32(value)
   decodeBase32(normalized)
   return normalized
 }

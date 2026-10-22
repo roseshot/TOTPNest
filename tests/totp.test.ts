@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeBase32, totpAt, windowAt } from '../src/worker/totp'
+import { decodeBase32, normalizeSecret, totpAt, windowAt } from '../src/worker/totp'
 
 const b32 = (text: string) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
@@ -36,5 +36,20 @@ describe('RFC 6238', () => {
   it('rejects invalid or short secrets', () => {
     expect(() => decodeBase32('INVALID0')).toThrow()
     expect(() => decodeBase32('JBSWY')).toThrow()
+  })
+  it('accepts canonical padded and unpadded Base32', () => {
+    const encoded = b32('12345678901')
+    expect(encoded.length % 8).toBe(2)
+    expect(decodeBase32(encoded + '======')).toEqual(decodeBase32(encoded))
+    expect(normalizeSecret(encoded.toLowerCase() + '======')).toBe(encoded)
+  })
+  it('rejects noncanonical Base32 lengths and padding bits', () => {
+    const encoded = b32('12345678901')
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+    const last = alphabet.indexOf(encoded[encoded.length - 1])
+    expect(() => decodeBase32('A'.repeat(19))).toThrow()
+    expect(() => decodeBase32(encoded + '=')).toThrow()
+    expect(() => decodeBase32(encoded + '=======')).toThrow()
+    expect(() => decodeBase32(encoded.slice(0, -1) + alphabet[last ^ 1])).toThrow()
   })
 })
