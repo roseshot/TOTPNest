@@ -73,7 +73,7 @@ function SharePage({ id }: { id: string }) {
     setBusy(true); setError('')
     try {
       const result = await request<{ unlockToken: string }>('/api/share/' + id + '/unlock', {
-        method: 'POST', token, body: { password }
+        method: 'POST', body: { password }
       })
       sessionStorage.setItem(storageKey, result.unlockToken)
       setUnlock(result.unlockToken)
