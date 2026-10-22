@@ -178,22 +178,29 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     } else setError("Couldn't copy the code. Try selecting it instead.")
   }
 
+
   return <section className="code-panel" aria-label="Verification code">
     <div className="code-head">
-      <span>Current code</span>
+      <span className="code-kicker">LIVE VERIFICATION CODE</span>
       <span role="status" className={'status ' + (!current || expired || preview ? 'warning' : 'success')}>
         {!current ? error ? 'Unavailable' : 'Loading' : expired ? 'Refreshing' : preview ? 'Expiring soon' : 'Ready to use'}
       </span>
     </div>
-    <div className="code-main">
-      <div className="code-digits" aria-live="off">
-        {currentCodeText(current, now)}
+    <div className="code-visual">
+      <div className="code-main">
+        <span className="code-label">Current code</span>
+        <div className="code-digits" aria-live="off">{currentCodeText(current, now)}</div>
       </div>
-      <button type="button" className="code-copy" disabled={!current || expired}
-        onClick={() => void doCopy()} aria-label="Copy current code">
-        {copied ? 'Copied' : 'Copy code'}
-      </button>
+      <div className="timer-ring"
+        role="timer" aria-label={current && !expired ? Math.ceil(remaining / 1000) + ' seconds remaining' : 'Code loading'}
+        style={{ background: 'conic-gradient(var(--timer-accent) ' + percentage + '%, var(--ring-track) 0)' }}>
+        <div className="timer-inner"><strong>{current && !expired ? Math.ceil(remaining / 1000) : '–'}</strong><small>sec</small></div>
+      </div>
     </div>
+    <button type="button" className="code-copy" disabled={!current || expired}
+      onClick={() => void doCopy()} aria-label="Copy current code">
+      <span aria-hidden="true">▣</span> {copied ? 'Copied to clipboard' : 'Copy current code'}
+    </button>
     <div className="progress" role="progressbar" aria-label="Code validity remaining"
       aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percentage)}>
       <div className={'progress-fill ' + (preview ? 'amber' : '')} style={{ width: percentage + '%' }} />
@@ -203,7 +210,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
       <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : error ? 'Code unavailable' : 'Loading your code...'}</span>
     </div>
     {preview && next && <div className="next-code-preview">
-      <span>Next code · not active yet</span>
+      <div><span>Next code</span><small>Not active yet — do not use or copy</small></div>
       <strong>{display(next.code)}</strong>
     </div>}
     {error && <div className="message error" role="alert">{error}

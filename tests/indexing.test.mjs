@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 const load = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), 'utf8')
 
-describe('site-wide noindex and square-corner UI', () => {
+describe('site-wide noindex and branded UI', () => {
   it('declares noindex in HTML metadata and static asset headers', () => {
     const html = load('../index.html')
     const headers = load('../public/_headers')
@@ -22,13 +22,22 @@ describe('site-wide noindex and square-corner UI', () => {
     expect(robots).not.toMatch(/^Disallow:\s*\/\s*$/m)
   })
 
-  it('uses square corners throughout the stylesheet', () => {
+  it('uses the new locally hosted brand and responsive rounded visual system', () => {
     const css = load('../src/client/styles.css')
-    expect(css).toContain('*{box-sizing:border-box;border-radius:0}')
-    expect(css.match(/border-radius:/g)).toHaveLength(1)
+    const brand = load('../src/client/Brand.tsx')
+    const svg = load('../public/totpnest-logo.svg')
     expect(css).toContain(':root[data-theme="light"]')
-    expect(css).toContain('color-scheme:light')
+    expect(css).toContain('color-scheme: light')
+    expect(css).toContain('--brand-cyan:')
+    expect(css).toContain('border-radius: 21px')
+    expect(css).toContain('.dashboard')
+    expect(css).toContain('.public-container')
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)')
+    expect(brand).toContain('src="/totpnest-logo.svg"')
+    expect(svg).toContain('<linearGradient')
+    expect(svg).toContain('TOTPNest security nest mark')
   })
+
 
   it('does not expose links to administration from public screens', () => {
     const app = load('../src/client/App.tsx')
