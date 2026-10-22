@@ -19,15 +19,15 @@ function database() {
   }
   const makeSession = () => ({
     prepare(sql) {
+      const query = sqlite.prepare(sql)
+      const bound = (values) => ({
+        first: async () => query.get(...values) || null,
+        all: async () => ({ results: query.all(...values) }),
+        run: async () => query.run(...values)
+      })
       return {
-        bind(...values) {
-          const query = sqlite.prepare(sql)
-          return {
-            first: async () => query.get(...values) || null,
-            all: async () => ({ results: query.all(...values) }),
-            run: async () => query.run(...values)
-          }
-        }
+        ...bound([]),
+        bind(...values) { return bound(values) }
       }
     },
     batch: async (statements) => {
