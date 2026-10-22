@@ -38,5 +38,11 @@ describe('public UI', () => {
     expect(html).not.toContain('Admin sign in')
     expect(html).not.toContain('href="/admin"')
   })
+
+  it('still opens the shared code page when session storage is blocked', () => {
+    vi.stubGlobal('window', { location: { pathname: '/s/aB7kP2mQ9xR4tY6vN8zW3c' } })
+    vi.stubGlobal('sessionStorage', { getItem: () => { throw new Error('Storage denied') } })
+    expect(renderToStaticMarkup(<App />)).toContain('Verification code')
+  })
 })
 

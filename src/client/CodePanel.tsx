@@ -17,6 +17,11 @@ function display(code: string): string {
   return code.slice(0, midpoint) + ' ' + code.slice(midpoint)
 }
 
+/** Never show a future or expired value in the primary code position. */
+export function currentCodeText(frame: Pick<CodeWindow, 'code' | 'expiresAt'> | null, now: number): string {
+  return frame && now < frame.expiresAt ? display(frame.code) : '••• •••'
+}
+
 export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const [current, setCurrent] = useState<CodeFrame | null>(null)
   const [next, setNext] = useState<CodeWindow | null>(null)
@@ -35,6 +40,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const applyCurrent = useCallback((value: CodeWindow) => {
     if (!active.current) return
     setCurrent({ ...value, receivedAt: performance.now() })
+    setCopied(false)
     setNext(null)
     setError('')
     requestedFor.current = null
@@ -136,7 +142,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const remaining = current ? Math.max(0, current.expiresAt - now) : 0
   const lifetime = current ? current.expiresAt - current.validFrom : 30_000
   const percentage = Math.min(100, Math.max(0, remaining / lifetime * 100))
-  const preview = next && next.validFrom === current?.expiresAt && remaining > 0 && remaining <= 5_000
+  const preview = Boolean(next && next.validFrom === current?.expiresAt && remaining > 0 && remaining <= 5_000)
   const expired = current !== null && now >= current.expiresAt
 
   useEffect(() => {
@@ -174,18 +180,18 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
 
   return <section className="code-panel" aria-label="Verification code">
     <div className="code-head">
-      <span>{preview ? 'Coming up next' : 'Your code'}</span>
-      <span className={'status ' + (preview ? 'warning' : expired ? 'danger' : 'success')}>
-        {preview ? `${Math.ceil(remaining / 1000)} seconds until active` : expired ? 'Expired' : 'Ready to use'}
+      <span>Current code</span>
+      <span role="status" className={'status ' + (!current || expired || preview ? 'warning' : 'success')}>
+        {!current ? error ? 'Unavailable' : 'Loading' : expired ? 'Refreshing' : preview ? 'Expiring soon' : 'Ready to use'}
       </span>
     </div>
     <div className="code-main">
       <div className="code-digits" aria-live="off">
-        {current && !expired ? display(preview ? next!.code : current.code) : '••• •••'}
+        {currentCodeText(current, now)}
       </div>
-      <button type="button" className="icon-button copy-button" disabled={!current || expired}
-        onClick={() => void doCopy()} aria-label="Copy the currently valid code" title="Copy the currently valid code">
-        {copied ? '✓' : '⧉'}
+      <button type="button" className="code-copy" disabled={!current || expired}
+        onClick={() => void doCopy()} aria-label="Copy current code">
+        {copied ? 'Copied' : 'Copy code'}
       </button>
     </div>
     <div className="progress" role="progressbar" aria-label="Code validity remaining"
@@ -193,9 +199,13 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
       <div className={'progress-fill ' + (preview ? 'amber' : '')} style={{ width: percentage + '%' }} />
     </div>
     <div className="code-foot">
-      <span>{preview && current ? `Use this code now: ${display(current.code)}` : copied ? 'Copied' : 'Updates automatically'}</span>
-      <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds' : 'Loading your code...'}</span>
+      <span role="status" aria-live="polite">{copied ? 'Copied to clipboard' : 'Updates automatically'}</span>
+      <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : error ? 'Code unavailable' : 'Loading your code...'}</span>
     </div>
+    {preview && next && <div className="next-code-preview">
+      <span>Next code · not active yet</span>
+      <strong>{display(next.code)}</strong>
+    </div>}
     {error && <div className="message error" role="alert">{error}
       {Number.isFinite(retryAt.current) && <button className="link-button"
         onClick={() => { retryAt.current = 0; void fetchCurrent() }}>Retry</button>}</div>}
