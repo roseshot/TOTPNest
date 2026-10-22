@@ -76,6 +76,8 @@ The committed `wrangler.jsonc` deliberately contains placeholders for both field
 
 Build variables are not Worker runtime secrets. Configure `ADMIN_PASSWORD` and `DATA_ENCRYPTION_KEY` separately in **Worker Settings > Variables and Secrets**, as secret values. The application's D1 binding remains `DB`; do not put the D1 UUID in a Worker runtime `vars` binding.
 
+The committed Wrangler template declares both runtime secrets under `secrets.required`. This declaration is preserved in `wrangler.generated.jsonc`, so Wrangler refuses a production deployment when either secret name is absent from the deployed Worker. It does **not** create secrets, validate their values, or inject build-only variables into the Worker. Add the required runtime secrets before retrying the deployment.
+
 ### First deployment and migrations
 
 If the database does not already exist, create one first:
@@ -114,6 +116,10 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'
 ```
 
 **Never commit real passwords, encryption keys, TOTP secrets, backup exports, or account data.**
+
+If an API request returns `The service is missing required encryption secrets`, inspect **Workers & Pages > totpnest > Settings > Variables and Secrets**. Both secret names must exist on the deployed Worker, `ADMIN_PASSWORD` must contain at least 16 characters, and `DATA_ENCRYPTION_KEY` must decode from Base64URL to exactly 32 bytes (normally 43 unpadded characters). After adding or updating secrets in the dashboard, select **Deploy** to activate the new Worker version. Keep these values out of **Build variables and secrets**.
+
+If you have already stored TOTP entries, **reuse the original `DATA_ENCRYPTION_KEY`**. Replacing it will make existing encrypted entries and share tokens undecryptable. A missing-secret deployment should not be repaired by generating a different encryption key if an original key exists.
 
 Run the complete checks and deploy from a local shell with both D1 environment variables set:
 

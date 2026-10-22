@@ -3,6 +3,9 @@
   "name": "totpnest",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-10-20",
+  "secrets": {
+    "required": ["ADMIN_PASSWORD", "DATA_ENCRYPTION_KEY"]
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

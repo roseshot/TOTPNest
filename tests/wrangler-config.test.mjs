@@ -22,6 +22,16 @@ describe('D1 build-variable configuration', () => {
     expect(generated.main).toBe(source.main)
   })
 
+  it('preserves the exact required runtime secret declarations', () => {
+    const expected = ['ADMIN_PASSWORD', 'DATA_ENCRYPTION_KEY']
+    const source = JSON.parse(template)
+    const generated = JSON.parse(renderWranglerConfig(template, vars))
+    expect(source.secrets?.required).toEqual(expected)
+    expect(generated.secrets?.required).toEqual(expected)
+    expect(generated.vars?.ADMIN_PASSWORD).toBeUndefined()
+    expect(generated.vars?.DATA_ENCRYPTION_KEY).toBeUndefined()
+  })
+
   it('rejects absent or invalid build variables', () => {
     expect(() => renderWranglerConfig(template, {})).toThrow('D1_DATABASE_NAME')
     expect(() => renderWranglerConfig(template, { ...vars, D1_DATABASE_ID: '' })).toThrow('D1_DATABASE_ID')
