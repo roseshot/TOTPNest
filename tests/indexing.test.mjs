@@ -15,6 +15,19 @@ describe('site-wide noindex and branded UI', () => {
     expect(worker).toContain("'X-Robots-Tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex'")
   })
 
+  it('loads the free Inter font through the CDN without weakening script security', () => {
+    const html = load('../index.html')
+    const headers = load('../public/_headers')
+    const css = load('../src/client/styles.css')
+    expect(html).toContain('fonts.googleapis.com/css2?family=Inter')
+    expect(html).toContain('display=swap')
+    expect(html).toContain('fonts.gstatic.com')
+    expect(css).toContain('font-family: "Inter", ui-sans-serif')
+    expect(headers).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com")
+    expect(headers).toContain("font-src 'self' https://fonts.gstatic.com")
+    expect(headers).toContain("script-src 'self'")
+  })
+
   it('does not block compliant crawlers from observing the noindex directive', () => {
     const robots = load('../public/robots.txt')
     expect(robots).toContain('User-agent: *')

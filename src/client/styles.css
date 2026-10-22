@@ -1,7 +1,7 @@
 
 /* TOTPNest — unified security-nest visual system. No external fonts or CSS dependencies. */
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -571,4 +571,56 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms!important; animation-duration: 0.01ms!important; }
+}
+
+
+/* Group organization: always available on desktop and mobile. */
+.group-section { display: flex; flex-direction: column; gap: 12px; margin: 0 0 22px; }
+.group-section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.group-section-head strong { font-size: 1rem; }
+.group-section-head p { margin-top: 3px; }
+.group-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.group-filters button {
+  display: inline-flex; align-items: center; gap: 9px; max-width: 100%;
+  min-height: 40px; padding: 9px 14px; border: 1px solid var(--stroke-strong);
+  border-radius: 999px; background: var(--surface); color: var(--muted);
+  font-size: .82rem; font-weight: 700; white-space: normal; overflow-wrap: anywhere;
+}
+.group-filters button:hover { background: var(--surface-soft); color: var(--text); }
+.group-filters button.selected { background: var(--surface-soft); color: var(--accent);
+  border-color: var(--accent); }
+.group-filters button span { font-size: .72rem; font-variant-numeric: tabular-nums;
+  padding: 3px 6px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); }
+.group-filters button.selected span { background: var(--surface); }
+.group-management { padding: 20px; display: flex; flex-direction: column; gap: 17px; }
+.group-management-intro h3 { margin-bottom: 4px; }
+.group-create-form, .group-rename-form { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.group-create-form .field-row, .group-rename-form .field-row { align-items: center; }
+.group-management-list { display: flex; flex-direction: column; gap: 8px; }
+.group-management-row { display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; border: 1px solid var(--stroke); border-radius: 12px;
+  background: var(--surface-high); padding: 11px 13px; min-width: 0; }
+.group-management-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.group-management-name strong { overflow-wrap: anywhere; }
+.group-management-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.group-management-row .group-rename-form { width: 100%; }
+.group-editor-field { display: flex; flex-direction: column; gap: 9px; }
+.group-editor-field .small { line-height: 1.4; }
+.account-group-move { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px 18px; border: 1px solid var(--stroke); border-radius: 14px;
+  background: var(--surface); }
+.account-group-move label { flex: 0 0 auto; }
+.account-group-move select { width: auto; max-width: 100%; min-width: 155px; flex: 1; }
+.entry-group-tag { color: var(--accent)!important; font-size: .72rem!important; }
+.share-views { display: inline-flex; width: fit-content; align-items: center;
+  padding: 5px 10px; border: 1px solid var(--stroke); border-radius: 999px;
+  color: var(--text); background: var(--surface-soft); font-size: .76rem;
+  font-weight: 750; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) {
+  .group-management { padding: 15px; }
+  .group-management-row { align-items: stretch; flex-direction: column; }
+  .group-create-form .field-row, .group-rename-form .field-row { flex-wrap: wrap; }
+  .group-create-form .field-row input, .group-rename-form .field-row input { flex-basis: 100%; }
+  .account-group-move { align-items: flex-start; flex-direction: column; }
+  .account-group-move select { flex: initial; width: 100%; }
 }

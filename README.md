@@ -21,7 +21,7 @@ A self-hosted, browser-based authenticator manager for one administrator, with s
 
 | Private administration | Controlled code sharing | Built for Cloudflare |
 | --- | --- | --- |
-| One administrator password; searchable TOTP entries; direct `otpauth://` and local QR image import. | Multiple links per code; optional share passwords; selectable expiration; immediate access revocation. | Workers + Hono + Web Crypto; encrypted secrets in D1; Sessions API; daily expired/revoked-record cleanup. |
+| One administrator password; groups for saved codes; search; direct `otpauth://` and local QR image import. | Multiple links per code; optional passwords; visit counts; selectable expiration; immediate revocation. | Workers + Hono + Web Crypto; encrypted secrets in D1; Sessions API; daily expired/revoked-record cleanup. |
 
 - **Supported codes:** SHA-1, SHA-256 and SHA-512; 6 or 8 digits; 15–120-second periods.
 - **Easy to use:** Responsive admin dashboard and public sharing pages, light/dark appearance, accessible copy actions and clear expiry states.
@@ -66,16 +66,17 @@ The public site is separate from `/admin`. Visitors can enter a case-sensitive S
 ### For the administrator
 
 1. Open `/admin` and enter the administrator password.
-2. **Add a code** by importing an `otpauth://totp/...` link, selecting a QR image, or supplying the setup key manually. QR decoding happens **locally in the browser**.
-3. Search your entries and select one to view the current code. The Worker generates TOTP values; it encrypts setup secrets with **AES-256-GCM** before storing them in D1.
-4. Select **Share code** to create a recipient link. Choose a lifetime (1 hour, 24 hours, 7 days, 30 days, or until revoked), an optional password, and a private admin note.
-5. Manage active share links from the dashboard. Revocation prevents new code requests **immediately**. Revoked and expired records are removed during the daily UTC-midnight cleanup.
+2. Create a **group** (for example, Work or Personal) and move codes into it, or leave them ungrouped.
+3. **Add a code** by importing an `otpauth://totp/...` link, selecting a QR image, or supplying the setup key manually. QR decoding happens **locally in the browser**.
+4. Search your entries and select one to view the current code. The Worker generates TOTP values; it encrypts setup secrets with **AES-256-GCM** before storing them in D1.
+5. Select **Share code** to create a recipient link. Choose a lifetime (1 hour, 24 hours, 7 days, 30 days, or until revoked), an optional password, and a private admin note.
+6. Manage active share links from the dashboard, including each link's **Views** count. Revocation prevents new code requests **immediately**. Revoked and expired records are removed during the daily UTC-midnight cleanup.
 
 ### For a recipient
 
 1. Open a provided `/s/{shareId}` link, or enter its Share ID at `/`. Letter case matters.
 2. If the owner protected the link, enter the separate share password; **no recipient account** is needed.
-3. Copy the **currently valid** code. The countdown runs locally; the next code is fetched only in the final five seconds and is clearly marked **not active yet**.
+3. Copy the **currently valid** code. The countdown runs locally; a pending next code is never displayed before it becomes valid.
 4. Ask the sender for a replacement if the share was revoked or expired.
 
 ### Request and storage architecture
@@ -117,21 +118,21 @@ For a working instance, create or select your D1 database, set `D1_DATABASE_NAME
 ## Features
 
 - Sign in to the administration dashboard with **one admin password**.
-- Add, edit, delete, and search TOTP entries.
+- Add, edit, delete, and search TOTP entries. Create, rename, and delete groups, filter by group, and move accounts between groups without changing their secrets.
 - Supports SHA-1, SHA-256, and SHA-512; 6- or 8-digit codes; periods of 15 to 120 seconds.
 - Import an `otpauth://totp/...` link or upload a QR code image. QR recognition runs in the browser; images are not uploaded.
 - TOTP secrets are encrypted with AES-256-GCM by the Worker before being written to D1.
-- Create multiple share links per TOTP entry, with separate expiration dates and revocation controls.
+- Create multiple share links per TOTP entry, with separate expiration dates, revocation controls, and per-link successful-view counters.
 - Revoked and expired shares stop working immediately, but their D1 records are removed together by a once-daily UTC midnight Cron Trigger.
 - Share URLs use a 22-character case-sensitive Base62 ID with approximately 131 bits of randomness, without a separate URL token.
 - **Public links:** anyone holding the URL can view the shared code.
 - **Password-protected links:** recipients must also enter a dedicated share password. No guest sign-up is required.
 - The share page **never shows issuer, service, or account details**. It displays the code, copy control, status, countdown, and progress bar.
 - The initial request fetches only the **current code**. The page requests the **next code** only during the **final five seconds** of the current period.
-- The next code is visibly marked as **not yet active**, and the copy button always copies the currently valid code.
+- Future codes are not shown before becoming active, and the copy button always copies the currently valid code.
 - The browser updates the countdown locally; no per-second API polling or WebSocket is required.
 - The public homepage (`/`) accepts a Share ID; `/admin` is the only administrator UI route, with no admin navigation on public pages.
-- The redesigned interface uses the TOTPNest blue-and-cyan nest mark, rounded surfaces, and responsive layouts. Public HTML, static resources, and API responses contain `noindex` directives.
+- The interface uses the TOTPNest blue-and-cyan nest mark, rounded surfaces, responsive layouts, and the free Inter font loaded from Google Fonts with system-font fallbacks. Public HTML, static resources, and API responses contain `noindex` directives.
 - Share-code and unlock endpoints have a Cloudflare-native rate limit to reduce abusive D1 reads without writing to D1 on each successful code view.
 - After five incorrect admin or share-password attempts from a visitor IP within 30 minutes, block that visitor for 30 minutes. Successful share unlocks do not reset the visitor-wide failure budget.
 - After ten unavailable share ID requests from a visitor IP within 24 hours, block that visitor from share access for 24 hours.
@@ -151,9 +152,9 @@ Dependencies are pinned to the current stable releases as of October 23, 2026, i
 
 TOTPNest uses the D1 **Sessions API** rather than querying the D1 binding directly. Enabling global read replication is an account/database setting in the Cloudflare dashboard; it does not require modifying the database schema.
 
-- **Read-only admin lists** (`GET /api/admin/entries`, `GET /api/admin/shares`) start sessions with `first-unconstrained` so a nearby read replica may serve the query.
+- **Read-only admin lists** (`GET /api/admin/entries`, `GET /api/admin/groups`) start sessions with `first-unconstrained` so a nearby read replica may serve the query.
 - The browser sends the most recent `X-D1-Bookmark` with subsequent admin API requests. Each response includes its session's latest bookmark, allowing reads after a write to observe at least that database version even if routed to a replica.
-- **Share-code requests, share authorization, unlocks, and mutations** start with `first-primary`, so revocation and expiration checks are not performed against stale replicas. Later queries within that same session may use a replica while maintaining sequential consistency.
+- **Share-code requests, share authorization, unlocks, the share list (for current visit totals), and mutations** start with `first-primary`, so revocation and expiration checks are not performed against stale replicas. Later queries within that same session may use a replica while maintaining sequential consistency.
 - **Admin session checks** explicitly query a fresh primary-first session, ensuring sign-out or session invalidation is not hidden by replication lag.
 - All writes still execute against the primary database. The Sessions API does not make D1 writes faster or prevent cloud network outages.
 
@@ -163,7 +164,7 @@ Cloudflare documentation: https://developers.cloudflare.com/d1/best-practices/re
 
 ## Appearance and everyday language
 
-The frontend uses the official four-bar shield-and-nest mark, redrawn as a self-contained SVG from the selected logo artwork. The full wordmark has been outlined into vector paths, so it does not require an external font. The layout includes a responsive admin sidebar, a verification-code workspace, and a separate public sharing experience. Brand updates do not change TOTP generation, share authorization, or encryption.
+The frontend uses the official four-bar shield-and-nest mark, redrawn as a self-contained SVG from the selected logo artwork. The full wordmark has been outlined into vector paths and needs no downloaded fonts; interface text uses **Inter**, loaded through Google Fonts (OFL-licensed), with platform font fallbacks. The layout includes a responsive admin sidebar, a verification-code workspace, and a separate public sharing experience. Brand updates do not change TOTP generation, share authorization, or encryption.
 
 | Brand asset | Purpose |
 | --- | --- |
@@ -171,11 +172,11 @@ The frontend uses the official four-bar shield-and-nest mark, redrawn as a self-
 | [`public/totpnest-wordmark.svg`](public/totpnest-wordmark.svg) | Full logo with outlined `TOTPNest` lettering for documentation and project presentation. |
 | [`docs/images/`](docs/images/) | Illustrated interface previews embedding the same official emblem (sample data only). |
 
-All logo and preview SVGs are stored in this repository and do not request external images or fonts.
+All logo and preview SVGs are stored in this repository and do not request external resources. The interface requests the Inter stylesheet from `fonts.googleapis.com` and font files from `fonts.gstatic.com`. Its Content Security Policy allows only those additional stylesheet/font hosts, not external scripts.
 
 - Dark and light modes are available on the homepage, shared-code pages, sign-in screen, and administrator dashboard.
 - The first visit follows the system color preference; manual theme choices are saved in the browser and reused on later visits.
-- A self-hosted script applies the saved theme before the page is shown, without changing the existing Content Security Policy or contacting the server.
+- A self-hosted script applies the saved theme before the page is shown. Only the stylesheet and font allowlist is extended for the Google Fonts CDN.
 - User-facing labels, buttons, confirmations, help text, and common errors use clear everyday language. Less common verification-code options remain available under **Other code settings**.
 - Both themes share the new brand styling and responsive layouts. Public pages continue to have no administrator entry point.
 
@@ -294,18 +295,28 @@ npm run dev
 
 Wrangler serves the built application at `http://127.0.0.1:8787` by default. Re-run `npm run dev` after changing the frontend, or run `npm run dev:ui` for the Vite frontend server against a separately running Worker. The development secrets file is ignored by Git.
 
+## Groups and view counts
+
+Migration `0004_groups_and_views.sql` adds groups and view receipts **without changing or re-encrypting existing codes**. All existing entries initially appear under **Ungrouped**. A deleted group moves its codes back to Ungrouped; it does not delete codes, secrets, or related share links.
+
+The administrator dashboard displays **Views** for each active share link. A view is counted when a recipient **successfully receives a current code** using that link. Password prompts, failed unlocks and unavailable links do not count. The browser sends a new random, short-lived-per-page-load visit ID; retries and automatic code changes reuse it, and the database ignores repeated IDs. Reloading or reopening the page is a new view, even for the same person, so **Views are not unique visitors**. Counts start at zero after the migration and are not reconstructed from past activity. Only the active share's random ID, random visit ID and timestamp are stored—no IP addresses, user agents or visitor identities. Receipts are deleted along with their share during daily cleanup. The statistic is best-effort and may undercount if a database write fails; code delivery takes priority.
+
+D1 is used for both group relationships and exact per-link view deduplication. Cloudflare KV is not required; its eventual consistency would complicate immediate deletion and deduplication. Access and visit totals remain administrator-only.
+
+The Inter typeface is fetched from a free Google Fonts CDN. Font requests are made by the visitor's browser, not by the Worker, and may reveal the visitor's IP address to the font provider as with other external resources. If the CDN is unavailable, the system font stack remains usable.
+
 ## Sharing behavior
 
 1. Sign in as the administrator and select a TOTP entry.
 2. Choose **Share**, optionally require an access password, choose an expiration period, and add a private admin note.
 3. Send the generated link to the recipient. Its path contains a case-sensitive, cryptographically random 22-character Base62 share ID; no URL token is needed.
 4. The recipient opens the link. A password prompt is shown only for password-protected shares.
-5. The page receives the current code from the Worker. Only in the final five seconds of the period does it request the next code.
+5. The page receives the current code from the Worker. Only in the final five seconds of the period does it request the next code, without showing it before it becomes valid.
 6. Revoking a link immediately blocks new requests; expiration blocks access at the configured time. The associated D1 records are cleaned up during the daily UTC-midnight Cron Trigger.
 
 The Worker checks share-ID existence, password-unlock tickets (when applicable), expiration, revocation, and visitor lockouts **on every code request**. Expiration never depends on whether background cleanup has run. Share pages and visitor APIs do not return issuer, account, or TOTP secret.
 
-A next code preview may **not be accepted** by the target service before its time window starts. The copy button continues to copy the current valid code.
+The next code is kept out of view until it becomes valid. The copy button always copies the current code.
 
 ## Security model and limitations
 
@@ -320,7 +331,7 @@ A next code preview may **not be accepted** by the target service before its tim
 - QR imports are limited to 10 MiB files and 20-megapixel images. TOTP imports require canonical Base32 lengths and padding bits. Static assets include a content security policy, no-referrer policy, and search-indexing restrictions.
 - **Revocation cannot invalidate codes already delivered.** Replacing a compromised TOTP secret requires reconfiguring 2FA at the underlying service.
 - There is no offline code generation; if the Worker or its dependencies are unavailable, fresh codes cannot be retrieved.
-- The Free plan has resource and CPU limits. For significant public-sharing traffic, apply additional edge-level access rules.
+- The Free plan has resource and CPU limits. Each counted shared-code view adds a small D1 row until the share is deleted, so significant public-sharing traffic may need additional edge-level rules.
 
 ## Share ID migration and compatibility
 
@@ -372,7 +383,10 @@ The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 ca
 | POST | `/api/admin/logout` | Authenticated admin |
 | GET | `/api/admin/session` | Session status |
 | GET / POST | `/api/admin/entries` | Authenticated admin |
+| GET / POST | `/api/admin/groups` | Authenticated admin |
+| PUT / DELETE | `/api/admin/groups/:id` | Authenticated admin |
 | PUT / DELETE | `/api/admin/entries/:id` | Authenticated admin |
+| PUT | `/api/admin/entries/:id/group` | Authenticated admin |
 | POST | `/api/admin/entries/:id/code` | Authenticated admin |
 | POST | `/api/admin/entries/:id/next` | Authenticated admin; final 5 seconds |
 | GET / POST | `/api/admin/shares` | Authenticated admin |

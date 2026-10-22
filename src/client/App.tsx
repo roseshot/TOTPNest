@@ -9,14 +9,16 @@ import { readableError } from './messages'
 import { routeForPath, sharePathForId } from './routes'
 import { parseOtpUri, type EntryDraft } from './otp-uri'
 import { activeEntry, visibleEntries } from './selection'
+import { GroupManager } from './GroupManager'
+import { entriesInGroup, type Group, type GroupFilter } from './groups'
 
 type Entry = {
   id: string; issuer: string; account: string; algorithm: 'SHA1' | 'SHA256' | 'SHA512';
-  digits: 6 | 8; period: number; createdAt: number; updatedAt: number
+  digits: 6 | 8; period: number; groupId: string | null; createdAt: number; updatedAt: number
 }
 type Share = {
   id: string; entryId: string; issuer: string; account: string; protected: boolean;
-  note: string; expiresAt: number | null; revokedAt: number | null; createdAt: number
+  note: string; expiresAt: number | null; revokedAt: number | null; createdAt: number; viewCount: number
 }
 const emptyDraft: EntryDraft = { issuer: '', account: '', secret: '', algorithm: 'SHA1', digits: 6, period: 30 }
 
@@ -259,13 +261,15 @@ function Login({ onLogin }: { onLogin: () => void }) {
 }
 
 
-function EntryEditor({ entry, onSaved, onCancel }: {
-  entry?: Entry; onSaved: (savedId?: string) => void; onCancel: () => void
+function EntryEditor({ entry, groups, suggestedGroupId, onSaved, onCancel }: {
+  entry?: Entry; groups: Group[]; suggestedGroupId: string | null;
+  onSaved: (savedId?: string) => void; onCancel: () => void
 }) {
   const [draft, setDraft] = useState<EntryDraft>(() => entry ? {
     issuer: entry.issuer, account: entry.account, algorithm: entry.algorithm,
     digits: entry.digits, period: entry.period, secret: ''
   } : { ...emptyDraft })
+  const [groupId, setGroupId] = useState<string>(entry?.groupId ?? suggestedGroupId ?? '')
   const [uri, setUri] = useState('')
   const [error, setError] = useState('')
   const [importNotice, setImportNotice] = useState('')
@@ -304,7 +308,8 @@ function EntryEditor({ entry, onSaved, onCancel }: {
     try {
       const result = await request<{ id?: string }>(entry ? '/api/admin/entries/' + entry.id : '/api/admin/entries', {
         method: entry ? 'PUT' : 'POST',
-        body: { ...draft, ...(entry && !draft.secret ? { secret: undefined } : {}) }
+        body: { ...draft, groupId: groupId || null,
+          ...(entry && !draft.secret ? { secret: undefined } : {}) }
       })
       onSaved(result.id || entry?.id)
     } catch (cause) { setError(message(cause)) }
@@ -354,6 +359,14 @@ function EntryEditor({ entry, onSaved, onCancel }: {
       <div><label htmlFor="account">Account</label>
         <input id="account" value={draft.account} maxLength={240}
           onChange={(e) => setField('account', e.target.value)} placeholder="e.g. name@example.com" /></div>
+    </div>
+    <div className="group-editor-field">
+      <label htmlFor="entry-group">Group</label>
+      <select id="entry-group" value={groupId} onChange={(event) => setGroupId(event.target.value)}>
+        <option value="">Ungrouped</option>
+        {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+      </select>
+      <p className="muted small">Choose where this code should appear in your list.</p>
     </div>
     <label htmlFor="secret">Setup key {entry ? '(leave blank to keep your current key)' : ''}</label>
     <div className="field-row secret-field">
@@ -491,6 +504,9 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
 }) {
   const [entries, setEntries] = useState<Entry[]>([])
   const [shares, setShares] = useState<Share[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
+  const [groupFilter, setGroupFilter] = useState<GroupFilter>('all')
+  const [movingGroup, setMovingGroup] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [editor, setEditor] = useState<'add' | 'edit' | null>(null)
   const [sharing, setSharing] = useState(false)
@@ -504,20 +520,43 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
 
   const reload = useCallback(async () => {
     try {
-      const [e, s] = await Promise.all([
+      const [e, s, g] = await Promise.all([
         request<{ entries: Entry[] }>('/api/admin/entries'),
-        request<{ shares: Share[] }>('/api/admin/shares')
+        request<{ shares: Share[] }>('/api/admin/shares'),
+        request<{ groups: Group[] }>('/api/admin/groups')
       ])
-      setEntries(e.entries); setShares(s.shares)
+      setEntries(e.entries); setShares(s.shares); setGroups(g.groups)
       setSelected((old) => e.entries.some((item) => item.id === old) ? old : e.entries[0]?.id || null)
       setError('')
     } catch (cause) { setError(message(cause)) }
     finally { setLoading(false) }
   }, [])
   useEffect(() => { void reload() }, [reload])
-  const filtered = visibleEntries(entries, search)
+  const filtered = visibleEntries(entriesInGroup(entries, groupFilter), search)
   // The details must always correspond to an item visible in the filtered list.
   const entry = activeEntry(filtered, selected)
+  const selectedGroup = groupFilter === 'all' ? 'All codes' :
+    groupFilter === 'ungrouped' ? 'Ungrouped' : groups.find((group) => group.id === groupFilter)?.name || 'Group'
+  const changeGroupFilter = (filter: GroupFilter) => {
+    setGroupFilter(filter)
+    setEditor(null); setSharing(false); setChoosingShare(false)
+  }
+  const moveEntry = async (item: Entry, groupId: string | null) => {
+    if (movingGroup || groupId === item.groupId) return
+    setMovingGroup(true); setError(''); setNotice('')
+    try {
+      await request('/api/admin/entries/' + item.id + '/group', {
+        method: 'PUT', body: { groupId }
+      })
+      // Keep the moved code visible even when it leaves the current group filter.
+      setGroupFilter('all')
+      setSelected(item.id)
+      await reload()
+      const groupName = groups.find((group) => group.id === groupId)?.name || 'Ungrouped'
+      setNotice('Moved to ' + groupName)
+    } catch (cause) { setError(message(cause)) }
+    finally { setMovingGroup(false) }
+  }
   const changeSearch = (value: string) => {
     setSearch(value)
     setEditor(null)
@@ -573,6 +612,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
 
   const startNew = () => {
     setSearch('')
+    if (tab === 'shares') setGroupFilter('all')
     setTab('entries')
     setSharing(false)
     setEditor(null)
@@ -674,12 +714,14 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
             onFocus={(event) => event.currentTarget.select()} />
           <button type="button" onClick={() => setManualLink('')}>Dismiss</button>
         </div>}
+        {tab === 'entries' && <GroupManager groups={groups} entries={entries}
+          filter={groupFilter} onSelect={changeGroupFilter} onChanged={reload} />}
         {tab === 'entries' && <div className="workspace-grid" role="tabpanel" id="panel-entries"
           aria-labelledby="tab-entries" tabIndex={0}>
           <aside className="card entry-list" aria-label="Saved code list">
             <div className="list-heading">
-              <strong>Your saved accounts</strong>
-              <span>{entries.length} total</span>
+              <strong>{selectedGroup}</strong>
+              <span>{entriesInGroup(entries, groupFilter).length} codes</span>
             </div>
             <div className="search-field">
               <input className="search" type="search" aria-label="Search saved codes"
@@ -690,7 +732,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
                 aria-label="Clear search">Clear</button>}
             </div>
             {!loading && entries.length > 0 && <p className="muted small search-count" role="status">
-              {filtered.length} of {entries.length} saved codes
+              {filtered.length} of {entriesInGroup(entries, groupFilter).length} codes shown
             </p>}
             <div className="entry-scroll">
               {filtered.length ? filtered.map((item) => <button key={item.id}
@@ -706,7 +748,11 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
                   {(item.issuer || item.account || '?').slice(0, 1).toUpperCase()}
                 </span>
                 <span className="entry-label"><strong>{item.issuer || 'Unnamed'}</strong>
-                  <small>{item.account || 'No account specified'}</small></span>
+                  <small>{item.account || 'No account specified'}</small>
+                  {groupFilter === 'all' && item.groupId && <small className="entry-group-tag">
+                    {groups.find((group) => group.id === item.groupId)?.name}
+                  </small>}
+                </span>
                 <span className="entry-arrow" aria-hidden="true">›</span>
               </button>) : <p className="muted empty">
                 {loading ? 'Loading saved codes...' : entries.length ? 'No codes match your search.' : 'No codes saved yet.'}
@@ -715,12 +761,14 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
           </aside>
           <section className="detail-column" aria-label="Check the details">
             {editor ? <EntryEditor key={editor + (editor === 'edit' ? entry?.id : '')}
-              entry={editor === 'edit' ? entry : undefined}
+              entry={editor === 'edit' ? entry : undefined} groups={groups}
+              suggestedGroupId={groups.some((group) => group.id === groupFilter) ? groupFilter : null}
               onCancel={() => setEditor(null)}
               onSaved={(savedId) => {
                 setEditor(null)
                 setChoosingShare(false)
                 setSearch('')
+                setGroupFilter('all')
                 if (savedId) setSelected(savedId)
                 setNotice('Code saved')
                 void reload()
@@ -753,14 +801,31 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
                   <button type="button" className="danger-button" onClick={() => void removeEntry(entry)}>Delete</button>
                 </div>
               </div>
+              <div className="account-group-move">
+                <label htmlFor="move-entry-group">Group</label>
+                <select id="move-entry-group" value={entry.groupId || ''}
+                  disabled={movingGroup} onChange={(event) => {
+                    void moveEntry(entry, event.target.value || null)
+                  }}>
+                  <option value="">Ungrouped</option>
+                  {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                </select>
+                <span className="muted small">{movingGroup ? 'Moving code...' : 'Move this code to another group.'}</span>
+              </div>
               <CodePanel key={entry.id} endpoint={'/api/admin/entries/' + entry.id}/>
               <p className="muted small code-meta">{entry.digits}-digit code · Changes every {entry.period} seconds</p>
             </> : loading ? <div className="card empty" role="status">Loading your codes...</div>
             : entries.length ? <div className="card empty-state">
               <span className="empty-symbol" aria-hidden="true">⌕</span>
-              <h2>No matching codes</h2>
-              <p className="muted">Try a different service or account name.</p>
-              <button type="button" onClick={() => changeSearch('')}>Clear search</button>
+              <h2>{search ? 'No matching codes' : 'No codes in this group'}</h2>
+              <p className="muted">{search ? 'Try another search or clear the search box.'
+                : 'You can move a saved code here or add a new one.'}</p>
+              <button type="button" onClick={() => search ? changeSearch('') : changeGroupFilter('all')}>
+                {search ? 'Clear search' : 'Show all codes'}
+              </button>
+              {!search && <button type="button" className="primary" onClick={() => setEditor('add')}>
+                Add a code
+              </button>}
             </div> : <div className="card empty-state">
               <span className="empty-symbol" aria-hidden="true">＋</span>
               <h2>Add your first code</h2>
@@ -788,9 +853,12 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
               <div className="share-info">
                 <span className="share-icon" aria-hidden="true">↗</span>
                 <div><strong>{share.issuer || 'Unnamed'}</strong><span className="muted small share-account">{share.account}</span>
-                  <span className="muted small">{share.protected ? 'Links with passwords' : 'Anyone with the link'}
+                  <span className="muted small">{share.protected ? 'Password required' : 'Anyone with the link'}
                     {share.note ? ' · ' + share.note : ''} · {share.expiresAt !== null
-                      ? 'Expires ' + formattedDate(share.expiresAt) : 'Does not expire'}</span></div>
+                      ? 'Expires ' + formattedDate(share.expiresAt) : 'Does not expire'}</span>
+                  <span className="share-views" title="Times someone opened the link and viewed a code. Automatic code updates aren't counted.">
+                    Views: {share.viewCount}
+                  </span></div>
               </div>
               <div className="share-actions">
                 <span className={'status ' + (revoked || expired ? 'danger' : 'success')}>

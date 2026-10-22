@@ -24,7 +24,7 @@ export class ApiFailure extends Error {
 }
 
 export async function request<T>(
-  path: string, options: { method?: string; body?: unknown; unlock?: string; signal?: AbortSignal } = {}
+  path: string, options: { method?: string; body?: unknown; unlock?: string; visitId?: string; signal?: AbortSignal } = {}
 ): Promise<T> {
   const headers: Record<string, string> = {}
   const method = options.method || 'GET'
@@ -33,6 +33,7 @@ export async function request<T>(
   if (sentBookmark) headers[BOOKMARK_HEADER] = sentBookmark
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
   if (options.unlock) headers['X-Share-Unlock'] = options.unlock
+  if (options.visitId) headers['X-Share-Visit'] = options.visitId
   let response: Response
   try {
     response = await fetch(path, {

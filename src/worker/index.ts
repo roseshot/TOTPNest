@@ -14,14 +14,15 @@ type Environment = { Bindings: Bindings; Variables: { db: DbSession } }
 type Ctx = Context<Environment>
 type Entry = {
   id: string; issuer: string; account: string; algorithm: TotpAlgorithm; digits: 6 | 8; period: number;
-  secret_nonce: string; secret_ciphertext: string; created_at: number; updated_at: number
+  secret_nonce: string; secret_ciphertext: string; group_id: string | null;
+  created_at: number; updated_at: number
 }
 type Share = {
   id: string; public_id: string; entry_id: string;
   password_hash: string | null; note: string; expires_at: number | null;
   revoked_at: number | null; created_at: number
 }
-type EntrySummary = Pick<Entry, 'id' | 'issuer' | 'account' | 'algorithm' | 'digits' | 'period' | 'created_at' | 'updated_at'>
+type EntrySummary = Pick<Entry, 'id' | 'issuer' | 'account' | 'algorithm' | 'digits' | 'period' | 'group_id' | 'created_at' | 'updated_at'>
 type EntryInput = { issuer: string; account: string; algorithm: TotpAlgorithm; digits: 6 | 8; period: number; secret?: string }
 
 class ApiError extends Error {
@@ -79,7 +80,34 @@ function validateEntry(value: Record<string, unknown>, requiresSecret: boolean):
 }
 function sanitized(row: EntrySummary) {
   return { id: row.id, issuer: row.issuer, account: row.account, algorithm: row.algorithm,
-    digits: row.digits, period: row.period, createdAt: row.created_at, updatedAt: row.updated_at }
+    digits: row.digits, period: row.period, groupId: row.group_id,
+    createdAt: row.created_at, updatedAt: row.updated_at }
+}
+
+async function validGroupId(c: Ctx, requested: unknown): Promise<string | null> {
+  if (requested === null || requested === undefined) return null
+  if (typeof requested !== 'string' || requested.length > 64 || requested.length === 0) {
+    throw new ApiError(400, 'Choose an existing group', 'GROUP_INVALID')
+  }
+  const group = await c.var.db.prepare('SELECT id FROM groups WHERE id = ?')
+    .bind(requested).first()
+  if (!group) throw new ApiError(400, 'Choose an existing group', 'GROUP_INVALID')
+  return requested
+}
+
+function groupName(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > 50) {
+    throw new ApiError(400, 'Group name must be 1 to 50 characters', 'GROUP_NAME')
+  }
+  return value.trim()
+}
+
+async function assertUniqueGroupName(c: Ctx, name: string, exclude?: string) {
+  const existing = await c.var.db.prepare('SELECT id FROM groups WHERE name = ? COLLATE NOCASE')
+    .bind(name).first<{ id: string }>()
+  if (existing && existing.id !== exclude) {
+    throw new ApiError(409, 'A group with this name already exists', 'GROUP_EXISTS')
+  }
 }
 async function getEntry(c: Ctx, id: string): Promise<Entry> {
   const row = await c.var.db.prepare('SELECT * FROM entries WHERE id = ?').bind(id).first<Entry>()
@@ -236,33 +264,79 @@ app.post('/api/admin/logout', async (c) => {
 })
 
 app.get('/api/admin/entries', async (c) => {
-  const rows = await c.var.db.prepare(`SELECT id, issuer, account, algorithm, digits, period, created_at, updated_at
-    FROM entries ORDER BY issuer COLLATE NOCASE, account COLLATE NOCASE`)
+  const rows = await c.var.db.prepare(`SELECT id, issuer, account, algorithm, digits, period, group_id,
+    created_at, updated_at FROM entries ORDER BY issuer COLLATE NOCASE, account COLLATE NOCASE`)
     .all<EntrySummary>()
   return c.json({ entries: rows.results.map(sanitized) })
 })
+
+app.get('/api/admin/groups', async (c) => {
+  const rows = await c.var.db.prepare(
+    'SELECT id, name FROM groups ORDER BY name COLLATE NOCASE'
+  ).all<{ id: string; name: string }>()
+  return c.json({ groups: rows.results })
+})
+app.post('/api/admin/groups', async (c) => {
+  const name = groupName((await jsonBody(c)).name)
+  await assertUniqueGroupName(c, name)
+  const id = crypto.randomUUID(), now = Date.now()
+  await c.var.db.prepare('INSERT INTO groups (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+    .bind(id, name, now, now).run()
+  return c.json({ id, name }, 201)
+})
+app.put('/api/admin/groups/:id', async (c) => {
+  const id = c.req.param('id')
+  const exists = await c.var.db.prepare('SELECT id FROM groups WHERE id = ?').bind(id).first()
+  if (!exists) throw new ApiError(404, 'Group not found', 'GROUP_MISSING')
+  const name = groupName((await jsonBody(c)).name)
+  await assertUniqueGroupName(c, name, id)
+  await c.var.db.prepare('UPDATE groups SET name = ?, updated_at = ? WHERE id = ?')
+    .bind(name, Date.now(), id).run()
+  return c.json({ ok: true })
+})
+app.delete('/api/admin/groups/:id', async (c) => {
+  const id = c.req.param('id')
+  const exists = await c.var.db.prepare('SELECT id FROM groups WHERE id = ?').bind(id).first()
+  if (!exists) throw new ApiError(404, 'Group not found', 'GROUP_MISSING')
+  // The foreign key sets member entries to Ungrouped without deleting their secrets or links.
+  await c.var.db.prepare('DELETE FROM groups WHERE id = ?').bind(id).run()
+  return c.json({ ok: true })
+})
 app.post('/api/admin/entries', async (c) => {
   requireConfig(c)
-  const data = validateEntry(await jsonBody(c), true)
+  const body = await jsonBody(c)
+  const data = validateEntry(body, true)
+  const groupId = await validGroupId(c, body.groupId)
   const id = crypto.randomUUID(), now = Date.now()
   const box = await encrypt(data.secret!, c.env.DATA_ENCRYPTION_KEY, 'entry:' + id + ':v1')
   await c.var.db.prepare(`INSERT INTO entries
-    (id,issuer,account,algorithm,digits,period,secret_nonce,secret_ciphertext,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    (id,issuer,account,algorithm,digits,period,secret_nonce,secret_ciphertext,group_id,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
     .bind(id, data.issuer, data.account, data.algorithm, data.digits, data.period,
-      box.nonce, box.ciphertext, now, now).run()
+      box.nonce, box.ciphertext, groupId, now, now).run()
   return c.json({ id }, 201)
 })
 app.put('/api/admin/entries/:id', async (c) => {
   requireConfig(c)
   const id = c.req.param('id'), previous = await getEntry(c, id)
-  const data = validateEntry(await jsonBody(c), false)
+  const body = await jsonBody(c)
+  const data = validateEntry(body, false)
+  // Older clients may omit groupId. Keep the existing group rather than clearing it.
+  const groupId = body.groupId === undefined ? previous.group_id : await validGroupId(c, body.groupId)
   const box = data.secret ? await encrypt(data.secret, c.env.DATA_ENCRYPTION_KEY, 'entry:' + id + ':v1')
     : { nonce: previous.secret_nonce, ciphertext: previous.secret_ciphertext }
   await c.var.db.prepare(`UPDATE entries SET issuer=?, account=?, algorithm=?, digits=?, period=?,
-    secret_nonce=?, secret_ciphertext=?, updated_at=? WHERE id=?`)
+    secret_nonce=?, secret_ciphertext=?, group_id=?, updated_at=? WHERE id=?`)
     .bind(data.issuer, data.account, data.algorithm, data.digits, data.period,
-      box.nonce, box.ciphertext, Date.now(), id).run()
+      box.nonce, box.ciphertext, groupId, Date.now(), id).run()
+  return c.json({ ok: true })
+})
+app.put('/api/admin/entries/:id/group', async (c) => {
+  const id = c.req.param('id')
+  await getEntry(c, id)
+  const groupId = await validGroupId(c, (await jsonBody(c)).groupId)
+  await c.var.db.prepare('UPDATE entries SET group_id = ?, updated_at = ? WHERE id = ?')
+    .bind(groupId, Date.now(), id).run()
   return c.json({ ok: true })
 })
 app.delete('/api/admin/entries/:id', async (c) => {
@@ -282,13 +356,14 @@ app.get('/api/admin/shares', async (c) => {
   const rows = await c.var.db.prepare(`SELECT shares.id, shares.entry_id, shares.note,
     shares.expires_at, shares.revoked_at, shares.created_at,
     (shares.password_hash IS NOT NULL) AS protected,
+    (SELECT COUNT(*) FROM share_visits WHERE share_id = shares.id) AS view_count,
     entries.issuer, entries.account
     FROM shares JOIN entries ON entries.id = shares.entry_id
     WHERE shares.revoked_at IS NULL AND (shares.expires_at IS NULL OR shares.expires_at > ?)
     ORDER BY shares.created_at DESC`).bind(Date.now()).all()
   return c.json({ shares: rows.results.map((row) => ({
     id: row.id, entryId: row.entry_id, note: row.note, expiresAt: row.expires_at,
-    revokedAt: row.revoked_at, createdAt: row.created_at,
+    revokedAt: row.revoked_at, createdAt: row.created_at, viewCount: Number(row.view_count),
     protected: Boolean(row.protected), issuer: row.issuer, account: row.account
   })) })
 })
@@ -362,7 +437,20 @@ app.post('/api/share/:id/code', async (c) => {
   await requireVisitorRateLimit(c, 'share')
   const share = await getShare(c)
   await requireUnlocked(c, share)
-  return codeFor(c, await getEntry(c, share.entry_id))
+  const response = await codeFor(c, await getEntry(c, share.entry_id))
+  // A page generates one random visit ID; automatic code refreshes reuse it.
+  // Only successful, authorized code views are counted. Never store visitor identity or IP.
+  const visitId = c.req.header('X-Share-Visit')
+  if (visitId && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(visitId)) {
+    try {
+      await c.var.db.prepare(
+        'INSERT OR IGNORE INTO share_visits (share_id, visit_id, viewed_at) VALUES (?, ?, ?)'
+      ).bind(share.id, visitId.toLowerCase(), Date.now()).run()
+    } catch {
+      // Statistics must never stop a valid verification code from being displayed.
+    }
+  }
+  return response
 })
 app.post('/api/share/:id/next', async (c) => {
   requireConfig(c)

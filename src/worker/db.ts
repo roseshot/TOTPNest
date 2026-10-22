@@ -12,7 +12,7 @@ export function sessionConstraint(
   path: string, method: string, bookmark: string | null
 ): string {
   const replicaSafe = method === 'GET' &&
-    (path === '/api/admin/entries' || path === '/api/admin/shares')
+    (path === '/api/admin/entries' || path === '/api/admin/groups')
 
   if (!replicaSafe) return 'first-primary'
   if (bookmark && bookmark.length <= 1024 && !/[\r\n\x00-\x1f\x7f]/.test(bookmark)) {

@@ -7,6 +7,7 @@ import { base64url, encrypt, sharePasswordHash } from '../src/worker/crypto'
 const schema = readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8')
 const migrate = readFileSync(new URL('../migrations/0002_share_ids.sql', import.meta.url), 'utf8')
 const cleanupMigration = readFileSync(new URL('../migrations/0003_share_cleanup.sql', import.meta.url), 'utf8')
+const groupMigration = readFileSync(new URL('../migrations/0004_groups_and_views.sql', import.meta.url), 'utf8')
 const master = base64url(new Uint8Array(32).fill(7))
 const adminPassword = 'test-only-admin-password-123456'
 const origin = 'https://totpnest.example'
@@ -89,6 +90,7 @@ describe('share migration and brute-force protection', () => {
     try {
       const oldId = await seedLegacyShare(sqlite, 'original-password')
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       const migrated = sqlite.prepare('SELECT * FROM shares WHERE id = ?').get(oldId)
       expect(migrated.public_id).toMatch(/^[0-9a-f]{32}$/)
       expect(migrated.public_id).not.toBe(oldId)
@@ -106,6 +108,7 @@ describe('share migration and brute-force protection', () => {
       const now = 1_790_000_000_000
       vi.spyOn(Date, 'now').mockReturnValue(now)
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       for (let i = 0; i < 4; i++) {
         expect((await post(env, '/api/admin/login', { password: 'incorrect' })).status).toBe(401)
       }
@@ -125,6 +128,7 @@ describe('share migration and brute-force protection', () => {
     try {
       const oldId = await seedLegacyShare(sqlite)
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       const validId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
       const now = 1_790_000_000_000
       vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -147,6 +151,7 @@ describe('share migration and brute-force protection', () => {
     try {
       const oldId = await seedLegacyShare(sqlite, 'correct-password')
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       const validId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
       const now = 1_790_000_000_000
       vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -172,6 +177,7 @@ describe('share migration and brute-force protection', () => {
     try {
       const oldId = await seedLegacyShare(sqlite, 'known-password')
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       const validId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
       vi.spyOn(Date, 'now').mockReturnValue(1_790_000_000_000)
       for (let i = 0; i < 2; i++) {
@@ -190,6 +196,7 @@ describe('share migration and brute-force protection', () => {
     try {
       const id = await seedLegacyShare(sqlite)
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       sqlite.exec(cleanupMigration)
       const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(id).public_id
       const midnight = Date.parse('2026-10-24T00:00:00Z')
@@ -233,6 +240,7 @@ describe('share migration and brute-force protection', () => {
       try {
         const id = await seedLegacyShare(sqlite)
         sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
         if (status === 'revoked') {
           sqlite.prepare('UPDATE shares SET revoked_at = ? WHERE id = ?').run(123, id)
         } else if (status === 'expired') {
@@ -253,6 +261,7 @@ describe('share migration and brute-force protection', () => {
     try {
       const oldId = await seedLegacyShare(sqlite)
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       sqlite.exec(cleanupMigration)
       const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
       const midnight = Date.parse('2026-10-24T00:00:00Z')
@@ -296,6 +305,7 @@ describe('share migration and brute-force protection', () => {
     try {
       const id = await seedLegacyShare(sqlite)
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       sqlite.exec(cleanupMigration)
       const midnight = Date.parse('2026-10-24T00:00:00Z')
       const justAfterMidnight = midnight + 5_000
@@ -321,6 +331,7 @@ describe('share migration and brute-force protection', () => {
     try {
       const id = await seedLegacyShare(sqlite)
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       sqlite.exec(cleanupMigration)
       const midnight = Date.parse('2026-10-24T00:00:00Z')
       const expiredAt = midnight + 2_000
@@ -341,6 +352,7 @@ describe('share migration and brute-force protection', () => {
     try {
       await seedEntry(sqlite)
       sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
       const login = await post(env, '/api/admin/login', { password: adminPassword })
       expect(login.status).toBe(200)
       const cookie = login.headers.get('set-cookie')?.split(';')[0]

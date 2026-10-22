@@ -33,6 +33,8 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const controller = useRef<AbortController | null>(null)
   const generation = useRef(0)
   const requestedFor = useRef<number | null>(null)
+  // New ID for each public page view. Reused across code changes and network retries.
+  const visitId = useRef<string | null>(null)
   const retryAt = useRef(0)
   const active = useRef(true)
   const authError = useRef(onAuthError)
@@ -49,11 +51,16 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     retryAt.current = 0
   }, [])
 
-  const send = useCallback((suffix: 'code' | 'next', expectedExpiry?: number, signal?: AbortSignal) =>
-    request<CodeWindow>(endpoint + '/' + suffix, {
+  const send = useCallback((suffix: 'code' | 'next', expectedExpiry?: number, signal?: AbortSignal) => {
+    if (suffix === 'code' && endpoint.startsWith('/api/share/') && !visitId.current) {
+      visitId.current = crypto.randomUUID()
+    }
+    return request<CodeWindow>(endpoint + '/' + suffix, {
       method: 'POST', unlock, signal,
+      ...(suffix === 'code' && endpoint.startsWith('/api/share/') ? { visitId: visitId.current || undefined } : {}),
       ...(suffix === 'next' ? { body: { expectedExpiry } } : {})
-    }), [endpoint, unlock])
+    })
+  }, [endpoint, unlock])
 
   const fetchCurrent = useCallback(async () => {
     if (flight.current) return

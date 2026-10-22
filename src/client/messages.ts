@@ -17,6 +17,10 @@ export function readableError(error: unknown): string {
       case 'UNAUTHORIZED': return 'Please sign in again to continue.'
       case 'NETWORK': return "Couldn't connect. Check your connection and try again."
       case 'INTERNAL_ERROR': return "Something went wrong. Please try again."
+      case 'GROUP_EXISTS': return 'You already have a group with that name.'
+      case 'GROUP_NAME': return 'Enter a group name with up to 50 characters.'
+      case 'GROUP_INVALID': return 'Choose a group from the list.'
+      case 'GROUP_MISSING': return "That group is no longer available. Refresh and try again."
     }
 
     if (error.status >= 500) return 'This page is temporarily unavailable. Please try again later.'
