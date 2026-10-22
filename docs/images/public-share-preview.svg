@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="700" viewBox="0 0 1120 700" role="img">
+<defs><linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0348C8"/><stop offset=".62" stop-color="#087BFA"/><stop offset="1" stop-color="#00CCE6"/></linearGradient>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#082461"/><stop offset="1" stop-color="#0357AB"/></linearGradient>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FAFDFF"/><stop offset="1" stop-color="#EAF3FF"/></linearGradient>
+<filter id="shadow" x="-20%" y="-30%" width="150%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1B5091" flood-opacity=".08"/></filter></defs>
+<rect x="0" y="0" width="1120" height="700" rx="0" fill="url(#sky)"/>
+<text x="560" y="56" font-family="Inter,Arial,Helvetica,sans-serif" font-size="28" fill="#123B6C" font-weight="800" text-anchor="middle" >Public sharing · three private steps</text>
+<text x="560" y="81" font-family="Inter,Arial,Helvetica,sans-serif" font-size="15" fill="#6885A6" font-weight="500" text-anchor="middle" >Recipients never see the service name, account, or TOTP setup key.</text>
+<rect x="89" y="125" width="290" height="516" rx="30" fill="#FFFFFF" stroke="#C6D9EE" stroke-width="2"/>
+<rect x="99" y="135" width="270" height="496" rx="25" fill="#FBFDFF"/>
+<rect x="200" y="138" width="68" height="10" rx="5" fill="#203654"/>
+<path d="M121.18 159 L132.36 165.02 L132.36 177.49 L121.18 183.94 L110 177.49 L110 165.02Z" fill="url(#blue)"/>
+<path d="M121.18 162.87 L128.92 167.17 L128.92 175.77 L121.18 180.5 L113.44 175.77 L113.44 167.17Z" fill="#082965"/>
+<path d="M 116.88 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 121.18 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 125.48 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 109.57 177.06 Q 121.18 190.82 132.79 177.06" fill="none" stroke="#0589EA" stroke-width="2.58" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 110.86 180.5 Q 121.18 188.67 131.5 180.5" fill="none" stroke="#A8F5FF" stroke-width="1.505" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="148" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTPNest</text>
+<rect x="309" y="158" width="50" height="25" rx="12.5" fill="#E9F4FF"/>
+<text x="334" y="175.5" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#1371E7" font-weight="700" text-anchor="middle" >◌</text>
+<text x="113" y="240" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#0D80EB" font-weight="800" text-anchor="start" >SHARED ACCESS</text>
+<text x="113" y="277" font-family="Inter,Arial,Helvetica,sans-serif" font-size="19" fill="#133768" font-weight="800" text-anchor="start" >View a shared code</text>
+<text x="113" y="305" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#66809F" font-weight="500" text-anchor="start" >Enter the Share ID you received.</text>
+<rect x="112" y="343" width="243" height="43" rx="10" fill="#FFFFFF" stroke="#D4E3F5" stroke-width="1"/>
+<text x="125" y="368" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#9CACBF" font-weight="500" text-anchor="start" >Enter your Share ID</text>
+<rect x="112" y="400" width="243" height="46" rx="11" fill="url(#blue)"/>
+<text x="234" y="429" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#FFFFFF" font-weight="750" text-anchor="middle" >View shared code →</text>
+<line x1="113" y1="478" x2="355" y2="478" stroke="#E5EDF8" stroke-width="1"/>
+<text x="113" y="503" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#8196B2" font-weight="500" text-anchor="start" >IDs are case-sensitive.</text>
+<text x="113" y="524" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#8196B2" font-weight="500" text-anchor="start" >A share password may be required.</text>
+<rect x="415" y="125" width="290" height="516" rx="30" fill="#FFFFFF" stroke="#C6D9EE" stroke-width="2"/>
+<rect x="425" y="135" width="270" height="496" rx="25" fill="#FBFDFF"/>
+<rect x="526" y="138" width="68" height="10" rx="5" fill="#203654"/>
+<path d="M447.18 159 L458.36 165.02 L458.36 177.49 L447.18 183.94 L436 177.49 L436 165.02Z" fill="url(#blue)"/>
+<path d="M447.18 162.87 L454.92 167.17 L454.92 175.77 L447.18 180.5 L439.44 175.77 L439.44 167.17Z" fill="#082965"/>
+<path d="M 442.88 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 447.18 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 451.48 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 435.57 177.06 Q 447.18 190.82 458.79 177.06" fill="none" stroke="#0589EA" stroke-width="2.58" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 436.86 180.5 Q 447.18 188.67 457.5 180.5" fill="none" stroke="#A8F5FF" stroke-width="1.505" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="474" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTPNest</text>
+<rect x="635" y="158" width="50" height="25" rx="12.5" fill="#E9F4FF"/>
+<text x="660" y="175.5" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#1371E7" font-weight="700" text-anchor="middle" >◌</text>
+<text x="439" y="240" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#0D80EB" font-weight="800" text-anchor="start" >PRIVATE SHARING</text>
+<text x="439" y="277" font-family="Inter,Arial,Helvetica,sans-serif" font-size="19" fill="#133768" font-weight="800" text-anchor="start" >Unlock shared code</text>
+<text x="439" y="305" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#66809F" font-weight="500" text-anchor="start" >Enter the password sent with</text>
+<text x="439" y="323" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#66809F" font-weight="500" text-anchor="start" >this protected link.</text>
+<rect x="438" y="350" width="243" height="43" rx="10" fill="#FFFFFF" stroke="#D4E3F5" stroke-width="1"/>
+<text x="452" y="377" font-family="Inter,Arial,Helvetica,sans-serif" font-size="16" fill="#869CB8" font-weight="500" text-anchor="start" >••••••••••</text>
+<rect x="438" y="405" width="243" height="46" rx="11" fill="url(#blue)"/>
+<text x="560" y="435" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#FFFFFF" font-weight="750" text-anchor="middle" >Unlock code →</text>
+<rect x="438" y="485" width="243" height="67" rx="12" fill="#EFF6FF"/>
+<text x="454" y="512" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#176ADE" font-weight="750" text-anchor="start" >Private by design</text>
+<text x="454" y="533" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#738EAF" font-weight="500" text-anchor="start" >No recipient account required.</text>
+<rect x="741" y="125" width="290" height="516" rx="30" fill="#FFFFFF" stroke="#C6D9EE" stroke-width="2"/>
+<rect x="751" y="135" width="270" height="496" rx="25" fill="#FBFDFF"/>
+<rect x="852" y="138" width="68" height="10" rx="5" fill="#203654"/>
+<path d="M773.18 159 L784.36 165.02 L784.36 177.49 L773.18 183.94 L762 177.49 L762 165.02Z" fill="url(#blue)"/>
+<path d="M773.18 162.87 L780.92 167.17 L780.92 175.77 L773.18 180.5 L765.44 175.77 L765.44 167.17Z" fill="#082965"/>
+<path d="M 768.88 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 773.18 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 777.48 168.89 v 7.31" fill="none" stroke="#60E5FF" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 761.57 177.06 Q 773.18 190.82 784.79 177.06" fill="none" stroke="#0589EA" stroke-width="2.58" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 762.86 180.5 Q 773.18 188.67 783.5 180.5" fill="none" stroke="#A8F5FF" stroke-width="1.505" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="800" y="188" font-family="Inter,Arial,Helvetica,sans-serif" font-size="17" fill="#123A75" font-weight="780" text-anchor="start" >TOTPNest</text>
+<rect x="961" y="158" width="50" height="25" rx="12.5" fill="#E9F4FF"/>
+<text x="986" y="175.5" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#1371E7" font-weight="700" text-anchor="middle" >◌</text>
+<text x="765" y="240" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#0D80EB" font-weight="800" text-anchor="start" >PRIVATE SHARING</text>
+<text x="765" y="277" font-family="Inter,Arial,Helvetica,sans-serif" font-size="19" fill="#133768" font-weight="800" text-anchor="start" >Verification code</text>
+<text x="765" y="306" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#66809F" font-weight="500" text-anchor="start" >Current code</text>
+<text x="763" y="374" font-family="Inter,Arial,Helvetica,sans-serif" font-size="40" fill="#123B76" font-weight="810" text-anchor="start" >246 801</text>
+<circle cx="975" cy="353" r="28" fill="none" stroke="#D8E8F6" stroke-width="7"/>
+<path d="M 975 325 A 28 28 0 1 1 949 363" fill="none" stroke="#04A7F0" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="975" y="357" font-family="Inter,Arial,Helvetica,sans-serif" font-size="16" fill="#0B72E2" font-weight="780" text-anchor="middle" >24</text>
+<rect x="764" y="400" width="243" height="45" rx="11" fill="url(#blue)"/>
+<text x="886" y="428" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#FFFFFF" font-weight="770" text-anchor="middle" >Copy current code</text>
+<rect x="764" y="461" width="243" height="6" rx="4" fill="#D8EAF7"/>
+<rect x="764" y="461" width="187" height="6" rx="4" fill="#0CA7EE"/>
+<text x="764" y="492" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#7991AA" font-weight="500" text-anchor="start" >Updates automatically</text>
+<text x="972" y="492" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#7991AA" font-weight="600" text-anchor="end" >24 sec left</text>
+<rect x="764" y="510" width="243" height="52" rx="11" fill="#F0F7FF"/>
+<text x="778" y="534" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#506B90" font-weight="500" text-anchor="start" >Next code preview appears only</text>
+<text x="778" y="550" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#506B90" font-weight="500" text-anchor="start" >in the last five seconds.</text>
+<text x="381" y="388" font-family="Inter,Arial,Helvetica,sans-serif" font-size="36" fill="#1889DE" font-weight="780" text-anchor="middle" >→</text>
+<text x="707" y="388" font-family="Inter,Arial,Helvetica,sans-serif" font-size="36" fill="#1889DE" font-weight="780" text-anchor="middle" >→</text>
+<text x="560" y="679" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#748CAD" font-weight="720" text-anchor="middle" >ILLUSTRATIVE UI · FICTIONAL CODES AND ACCOUNT-FREE PUBLIC SCREENS</text>
+</svg>

@@ -1,6 +1,120 @@
-# TOTPNest
+<div align="center">
 
-A **browser-only, single-administrator TOTP manager** built on Cloudflare Workers Free and Cloudflare D1. The Worker generates all codes. No Cloudflare Access, passkeys, MFA for the admin dashboard, guest accounts, or mobile apps are required.
+<img src="public/totpnest-logo.svg" width="112" alt="TOTPNest blue-and-cyan security nest logo" />
+
+<h1>TOTPNest</h1>
+
+**Your TOTP codes, safely nested.**
+
+A self-hosted, browser-based authenticator manager for one administrator, with secure, time-limited code sharing. Powered by **Cloudflare Workers + D1**.
+
+[![CI](https://github.com/roseshot/TOTPNest/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/roseshot/TOTPNest/actions/workflows/ci.yml)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange)](https://developers.cloudflare.com/workers/)
+[![React](https://img.shields.io/badge/React-19-087EA4)](https://react.dev/)
+
+[Explore the interface](#interface-preview) · [Get started](#quick-start) · [Deployment](#deployment) · [Security](#security-model-and-limitations)
+
+</div>
+
+> [!IMPORTANT]
+> TOTPNest is a **single-administrator, server-generated TOTP manager**, not a zero-knowledge vault or an offline authenticator. Keep the Worker encryption key safe, protect your admin password, and treat public share URLs as credentials.
+
+## At a glance
+
+| Private administration | Controlled code sharing | Built for Cloudflare |
+| --- | --- | --- |
+| One administrator password; searchable TOTP entries; direct `otpauth://` and local QR image import. | Multiple links per code; optional share passwords; selectable expiration; immediate access revocation. | Workers + Hono + Web Crypto; encrypted secrets in D1; Sessions API; daily expired/revoked-record cleanup. |
+
+- **Supported codes:** SHA-1, SHA-256 and SHA-512; 6 or 8 digits; 15–120-second periods.
+- **Easy to use:** Responsive admin dashboard and public sharing pages, light/dark appearance, accessible copy actions and clear expiry states.
+- **Deliberately small scope:** No guest registration, administrator OAuth, passkeys, offline code generation, or native mobile app.
+- **Security-focused delivery:** Same-origin APIs, no-store responses, security headers, rate limiting and primary-first authorization checks.
+
+## Interface preview
+
+The vector previews below illustrate the **implemented visual layout** with fictional services, share IDs and codes. They are **not screenshots of production data**. The UI shares a locally hosted [TOTPNest logo](public/totpnest-logo.svg) and blue-to-cyan styling across administrator and visitor experiences.
+
+### Administrator workspace
+
+Select a saved account, see the **current valid** TOTP code and its countdown, and choose whether to edit, delete or share it.
+
+![Illustrated TOTPNest administrator dashboard with a sidebar, saved code list, share status, and a live verification-code card](docs/images/dashboard-preview.svg)
+
+### Secure sign-in and code import
+
+The administrator signs in with a **single password**. Code setup accepts an `otpauth://` link, a QR **image file processed in the browser**, or a manually entered setup key.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/images/admin-login-preview.svg" alt="Illustrated password-only TOTPNest administrator sign-in screen" width="100%" />
+<br /><sub><strong>Password-only administrator sign-in</strong> — no email account or third-party login required.</sub>
+</td>
+<td width="50%" valign="top">
+<img src="docs/images/add-code-preview.svg" alt="Illustrated TOTPNest add-code form with browser-side QR image import and manual setup fields" width="100%" />
+<br /><sub><strong>Add a verification code</strong> — import a QR image or setup link, then review and save.</sub>
+</td>
+</tr>
+</table>
+
+### Public sharing on mobile
+
+The public site is separate from `/admin`. Visitors can enter a case-sensitive Share ID at `/`, unlock password-protected links, and view a code at `/s/{shareId}` **without seeing the issuer, account or setup secret**.
+
+![Illustrated mobile journey for Share ID entry, optional password unlock, and a public verification code](docs/images/public-share-preview.svg)
+
+## How TOTPNest works
+
+### For the administrator
+
+1. Open `/admin` and enter the administrator password.
+2. **Add a code** by importing an `otpauth://totp/...` link, selecting a QR image, or supplying the setup key manually. QR decoding happens **locally in the browser**.
+3. Search your entries and select one to view the current code. The Worker generates TOTP values; it encrypts setup secrets with **AES-256-GCM** before storing them in D1.
+4. Select **Share code** to create a recipient link. Choose a lifetime (1 hour, 24 hours, 7 days, 30 days, or until revoked), an optional password, and a private admin note.
+5. Manage active share links from the dashboard. Revocation prevents new code requests **immediately**. Revoked and expired records are removed during the daily UTC-midnight cleanup.
+
+### For a recipient
+
+1. Open a provided `/s/{shareId}` link, or enter its Share ID at `/`. Letter case matters.
+2. If the owner protected the link, enter the separate share password; **no recipient account** is needed.
+3. Copy the **currently valid** code. The countdown runs locally; the next code is fetched only in the final five seconds and is clearly marked **not active yet**.
+4. Ask the sender for a replacement if the share was revoked or expired.
+
+### Request and storage architecture
+
+```mermaid
+flowchart LR
+    A["Administrator browser<br/>/admin"] -->|"Authenticated requests"| W["Cloudflare Worker<br/>Hono + Web Crypto"]
+    R["Recipient browser<br/>/ and /s/{shareId}"] -->|"Share ID and optional unlock"| W
+    W <-->|"D1 Sessions API"| D[("Cloudflare D1<br/>encrypted TOTP secrets<br/>and share records")]
+    W -->|"Server-generated current code"| A
+    W -->|"Authorized current code"| R
+    C["Daily Cron<br/>00:00 UTC"] -->|"Purge expired/revoked records"| W
+```
+
+**Trust boundaries:** The Worker holds the encryption capability and generates codes. D1 stores ciphertext and share metadata. Share-code and unlock requests check access against fresh, primary-first D1 sessions. A public share does not expose administrator account details.
+
+## Quick start
+
+**Requirements:** Node.js 22.12+, a Cloudflare account with Workers and D1, and Wrangler access.
+
+```sh
+git clone https://github.com/roseshot/TOTPNest.git
+cd TOTPNest
+npm install
+npm run check
+```
+
+For a working instance, create or select your D1 database, set `D1_DATABASE_NAME` and `D1_DATABASE_ID` in your build environment, and configure the independent Worker secrets `ADMIN_PASSWORD` and `DATA_ENCRYPTION_KEY`. Apply migrations before deployment. **Do not put real keys or TOTP data in the repository.**
+
+| Task | Where to go |
+| --- | --- |
+| Deploy from GitHub `main` | [Cloudflare Workers Builds](#cloudflare-workers-builds-git-connected-deployments) |
+| Provision secrets and migrate D1 | [First deployment and migrations](#first-deployment-and-migrations) |
+| Develop using local D1 | [Local development](#local-development) |
+| Understand share revocation and cleanup | [Share deletion and automatic expiration](#share-deletion-and-automatic-expiration) |
+| Plan backups and key recovery | [Backup and recovery](#backup-and-recovery) |
+| Review the security trade-offs | [Security model and limitations](#security-model-and-limitations) |
 
 ## Features
 
@@ -181,7 +295,7 @@ Wrangler serves the built application at `http://127.0.0.1:8787` by default. Re-
 3. Send the generated link to the recipient. Its path contains a case-sensitive, cryptographically random 22-character Base62 share ID; no URL token is needed.
 4. The recipient opens the link. A password prompt is shown only for password-protected shares.
 5. The page receives the current code from the Worker. Only in the final five seconds of the period does it request the next code.
-6. Revoking a link immediately deletes its record. Expired links stop working at their expiration time and their records are removed automatically.
+6. Revoking a link immediately blocks new requests; expiration blocks access at the configured time. The associated D1 records are cleaned up during the daily UTC-midnight Cron Trigger.
 
 The Worker checks share-ID existence, password-unlock tickets (when applicable), expiration, revocation, and visitor lockouts **on every code request**. Expiration never depends on whether background cleanup has run. Share pages and visitor APIs do not return issuer, account, or TOTP secret.
 

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="665" viewBox="0 0 1200 665" role="img">
+<defs><linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0348C8"/><stop offset=".62" stop-color="#087BFA"/><stop offset="1" stop-color="#00CCE6"/></linearGradient>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#082461"/><stop offset="1" stop-color="#0357AB"/></linearGradient>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FAFDFF"/><stop offset="1" stop-color="#EAF3FF"/></linearGradient>
+<filter id="shadow" x="-20%" y="-30%" width="150%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1B5091" flood-opacity=".08"/></filter></defs>
+<rect x="0" y="0" width="1200" height="665" rx="0" fill="url(#sky)"/>
+<rect x="105" y="50" width="990" height="550" rx="28" fill="#FFFFFF" stroke="#DAE9FA" stroke-width="1"/>
+<rect x="105" y="50" width="445" height="550" rx="28" fill="url(#navy)"/>
+<rect x="518" y="50" width="32" height="550" rx="0" fill="url(#navy)"/>
+<path d="M162.9 91 L179.8 100.1 L179.8 118.95 L162.9 128.7 L146 118.95 L146 100.1Z" fill="url(#blue)"/>
+<path d="M162.9 96.85 L174.6 103.35 L174.6 116.35 L162.9 123.5 L151.2 116.35 L151.2 103.35Z" fill="#082965"/>
+<path d="M 156.4 105.95 v 11.05" fill="none" stroke="#60E5FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 162.9 105.95 v 11.05" fill="none" stroke="#60E5FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 169.4 105.95 v 11.05" fill="none" stroke="#60E5FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 145.35 118.3 Q 162.9 139.1 180.45 118.3" fill="none" stroke="#0589EA" stroke-width="3.9000000000000004" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 147.3 123.5 Q 162.9 135.85 178.5 123.5" fill="none" stroke="#A8F5FF" stroke-width="2.275" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="197" y="131" font-family="Inter,Arial,Helvetica,sans-serif" font-size="25" fill="#FFFFFF" font-weight="780" text-anchor="start" >TOTPNest</text>
+<text x="155" y="250" font-family="Inter,Arial,Helvetica,sans-serif" font-size="13" fill="#9FECFF" font-weight="790" text-anchor="start" >YOUR PRIVATE WORKSPACE</text>
+<text x="155" y="294" font-family="Inter,Arial,Helvetica,sans-serif" font-size="36" fill="#FFFFFF" font-weight="800" text-anchor="start" >Every code has</text>
+<text x="155" y="337" font-family="Inter,Arial,Helvetica,sans-serif" font-size="36" fill="#FFFFFF" font-weight="800" text-anchor="start" >a secure place.</text>
+<text x="155" y="376" font-family="Inter,Arial,Helvetica,sans-serif" font-size="15" fill="#DAEDFF" font-weight="500" text-anchor="start" >Manage and share verification codes</text>
+<text x="155" y="398" font-family="Inter,Arial,Helvetica,sans-serif" font-size="15" fill="#DAEDFF" font-weight="500" text-anchor="start" >with one private administrator.</text>
+<rect x="155" y="430" width="26" height="26" rx="8" fill="#176FD2"/>
+<text x="168" y="448" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#ACF5FF" font-weight="700" text-anchor="middle" >01</text>
+<text x="195" y="448" font-family="Inter,Arial,Helvetica,sans-serif" font-size="14" fill="#D9EEFF" font-weight="500" text-anchor="start" >Encrypted storage</text>
+<rect x="155" y="471" width="26" height="26" rx="8" fill="#176FD2"/>
+<text x="168" y="489" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#ACF5FF" font-weight="700" text-anchor="middle" >02</text>
+<text x="195" y="489" font-family="Inter,Arial,Helvetica,sans-serif" font-size="14" fill="#D9EEFF" font-weight="500" text-anchor="start" >Time-limited share links</text>
+<rect x="155" y="512" width="26" height="26" rx="8" fill="#176FD2"/>
+<text x="168" y="530" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#ACF5FF" font-weight="700" text-anchor="middle" >03</text>
+<text x="195" y="530" font-family="Inter,Arial,Helvetica,sans-serif" font-size="14" fill="#D9EEFF" font-weight="500" text-anchor="start" >Single-administrator access</text>
+<path d="M779 115 L805 129 L805 158 L779 173 L753 158 L753 129Z" fill="url(#blue)"/>
+<path d="M779 124 L797 134 L797 154 L779 165 L761 154 L761 134Z" fill="#082965"/>
+<path d="M 769 138 v 17" fill="none" stroke="#60E5FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 779 138 v 17" fill="none" stroke="#60E5FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 789 138 v 17" fill="none" stroke="#60E5FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 752 157 Q 779 189 806 157" fill="none" stroke="#0589EA" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 755 165 Q 779 184 803 165" fill="none" stroke="#A8F5FF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="752" y="276" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#0E7BEE" font-weight="760" text-anchor="start" >ADMIN ACCESS</text>
+<text x="752" y="322" font-family="Inter,Arial,Helvetica,sans-serif" font-size="33" fill="#10376D" font-weight="800" text-anchor="start" >Welcome back</text>
+<text x="752" y="358" font-family="Inter,Arial,Helvetica,sans-serif" font-size="14" fill="#7890AA" font-weight="500" text-anchor="start" >Sign in with your administrator password.</text>
+<text x="753" y="404" font-family="Inter,Arial,Helvetica,sans-serif" font-size="14" fill="#244973" font-weight="720" text-anchor="start" >Administrator password</text>
+<rect x="751" y="418" width="282" height="46" rx="11" fill="#FAFCFF" stroke="#CFE0F4" stroke-width="1"/>
+<text x="770" y="448" font-family="Inter,Arial,Helvetica,sans-serif" font-size="19" fill="#90A5C0" font-weight="500" text-anchor="start" >••••••••••••••</text>
+<rect x="751" y="483" width="282" height="49" rx="11" fill="url(#blue)"/>
+<text x="892" y="514" font-family="Inter,Arial,Helvetica,sans-serif" font-size="16" fill="#FFFFFF" font-weight="770" text-anchor="middle" >Sign in  →</text>
+<text x="752" y="566" font-family="Inter,Arial,Helvetica,sans-serif" font-size="12" fill="#8199B2" font-weight="500" text-anchor="start" >Only /admin shows the administrator login.</text>
+<text x="600" y="641" font-family="Inter,Arial,Helvetica,sans-serif" font-size="11" fill="#8095AF" font-weight="700" text-anchor="middle" >PRIVATE ADMIN · NO USER REGISTRATION OR OAUTH</text>
+</svg>
