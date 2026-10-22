@@ -1,1 +1,180 @@
 # TOTPNest
+
+A **browser-only, single-administrator TOTP manager** built on Cloudflare Workers Free and Cloudflare D1. The Worker generates all codes. No Cloudflare Access, passkeys, MFA for the admin dashboard, guest accounts, or mobile apps are required.
+
+## Features
+
+- Sign in to the administration dashboard with **one admin password**.
+- Add, edit, delete, and search TOTP entries.
+- Supports SHA-1, SHA-256, and SHA-512; 6- or 8-digit codes; periods of 15 to 120 seconds.
+- Import an `otpauth://totp/...` link or upload a QR code image. QR recognition runs in the browser; images are not uploaded.
+- TOTP secrets are encrypted with AES-256-GCM by the Worker before being written to D1.
+- Create multiple share links per TOTP entry, with separate expiration dates and revocation controls.
+- **Public links:** anyone holding the URL can view the shared code.
+- **Password-protected links:** recipients must also enter a dedicated share password. No guest sign-up is required.
+- The share page **never shows issuer, service, or account details**. It displays the code, copy control, status, countdown, and progress bar.
+- The initial request fetches only the **current code**. The page requests the **next code** only during the **final five seconds** of the current period.
+- The next code is visibly marked as **not yet active**, and the copy button always copies the currently valid code.
+- The browser updates the countdown locally; no per-second API polling or WebSocket is required.
+
+## Stack
+
+- React 19, TypeScript, Vite, jsQR
+- Cloudflare Workers with Hono and the Web Crypto API
+- Cloudflare D1 (SQLite) with optional global read replication and Sessions API bookmarks
+- Workers Static Assets for the SPA and security headers
+
+## Dependency versions
+
+Dependencies are pinned to the current stable releases as of October 23, 2026, including React 19.3.1, Hono 4.13.13, Vite 8.3.5, Vitest 5.0.5, TypeScript 7.0.2 and Wrangler 4.151.3. See `package.json` for the full version list.
+
+## D1 read replication
+
+TOTPNest uses the D1 **Sessions API** rather than querying the D1 binding directly. Enabling global read replication is an account/database setting in the Cloudflare dashboard; it does not require modifying the database schema.
+
+- **Read-only admin lists** (`GET /api/admin/entries`, `GET /api/admin/shares`) start sessions with `first-unconstrained` so a nearby read replica may serve the query.
+- The browser sends the most recent `X-D1-Bookmark` with subsequent admin API requests. Each response includes its session's latest bookmark, allowing reads after a write to observe at least that database version even if routed to a replica.
+- **Share-code requests, share authorization, unlocks, and mutations** start with `first-primary`, so revocation and expiration checks are not performed against stale replicas. Later queries within that same session may use a replica while maintaining sequential consistency.
+- **Admin session checks** explicitly query a fresh primary-first session, ensuring sign-out or session invalidation is not hidden by replication lag.
+- All writes still execute against the primary database. The Sessions API does not make D1 writes faster or prevent cloud network outages.
+
+Read replication may return an older list snapshot to a *new browser session without a bookmark*. The browser bookmark is scoped to the admin tab's session storage and is never sent from public share pages.
+
+Cloudflare documentation: https://developers.cloudflare.com/d1/best-practices/read-replication/#use-sessions-api
+
+## Requirements
+
+- Node.js 22.12 or later
+- A Cloudflare account with Workers and D1 enabled (the Free plan is supported)
+- A domain managed through Cloudflare DNS for a Custom Domain
+- Access to a terminal with Wrangler
+
+## Deployment
+
+Install dependencies, authenticate Wrangler, and create a D1 database:
+
+```sh
+npm install
+npx wrangler login
+npx wrangler d1 create totpnest
+```
+
+Replace `REPLACE_WITH_YOUR_D1_DATABASE_ID` in `wrangler.jsonc` with the newly created database ID.
+
+Apply the schema to your remote D1 database:
+
+```sh
+npm run db:migrate:remote
+```
+
+Set two independent **Worker Secrets**:
+
+```sh
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put DATA_ENCRYPTION_KEY
+```
+
+- `ADMIN_PASSWORD`: use a unique, randomly generated password (20+ characters recommended; at least 16 are required by the Worker).
+- `DATA_ENCRYPTION_KEY`: a **separate, randomly generated 32-byte key encoded as base64url**. This is not a password.
+
+Generate a valid encryption key on your own machine:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+```
+
+**Never commit real passwords, encryption keys, TOTP secrets, backup exports, or account data.**
+
+Run the complete checks and deploy:
+
+```sh
+npm run check
+npm run deploy
+```
+
+In Cloudflare Dashboard, open **Workers & Pages > totpnest > Settings > Domains & Routes** and add your Custom Domain, such as `totp.example.com`. Visit `https://totp.example.com/admin`.
+
+This repository **does not deploy automatically**: the GitHub Actions workflow runs validation only. The checked-in Wrangler configuration contains a D1 placeholder, and no production secrets or domains are included. Disable unneeded preview endpoints and apply appropriate Cloudflare security rules before using real TOTP secrets.
+
+## Local development
+
+```sh
+cp .dev.vars.example .dev.vars
+# Replace both placeholders in .dev.vars with test-only credentials.
+npm run db:migrate:local
+npm run dev
+```
+
+Wrangler serves the built application at `http://127.0.0.1:8787` by default. Re-run `npm run dev` after changing the frontend, or run `npm run dev:ui` for the Vite frontend server against a separately running Worker. The development secrets file is ignored by Git.
+
+## Sharing behavior
+
+1. Sign in as the administrator and select a TOTP entry.
+2. Choose **Share**, optionally require an access password, choose an expiration period, and add a private admin note.
+3. Send the generated link to the recipient. A link contains a random 256-bit bearer token in its URL fragment.
+4. The recipient opens the link. A password prompt is shown only for password-protected shares.
+5. The page receives the current code from the Worker. Only in the final five seconds of the period does it request the next code.
+6. Revoking a link or reaching its expiration stops further code requests.
+
+The Worker checks share-token authorization, password-unlock tickets (when applicable), expiration, and revocation **on every code request**. Share pages and visitor APIs do not return issuer, account, or TOTP secret.
+
+A next code preview may **not be accepted** by the target service before its time window starts. The copy button continues to copy the current valid code.
+
+## Security model and limitations
+
+- The Worker **can decrypt TOTP secrets**, so this is **not an end-to-end encrypted or zero-knowledge vault**. Compromise of the Worker, its deployment access, or its encryption secret may expose TOTP secrets.
+- `ADMIN_PASSWORD` is held as a Worker Secret, not in D1. Administrator sessions use random 256-bit tokens; D1 contains only session hashes. Session cookies use `HttpOnly; Secure; SameSite=Strict` on HTTPS.
+- Updating `ADMIN_PASSWORD` invalidates prior admin sessions because the stored session verifier is bound to the configured password.
+- Share tokens are 256-bit random values. Their hashes are stored in D1; an AES-GCM-encrypted copy is retained so the administrator can copy an active link again.
+- Protected-share passwords use a purpose-separated, keyed HMAC verifier derived from the Worker encryption secret. Each share has a distinct identifier. Worker and D1 rate limits discourage online guessing; **use a strong share password**.
+- Successful password unlocks issue a short-lived 15-minute ticket bound to the share and its bearer token. The browser keeps the ticket in session storage only.
+- APIs check request origin, avoid cross-origin access, limit request sizes, and disable caching. Static assets include a content security policy, no-referrer policy, and search-indexing restrictions.
+- **Revocation cannot invalidate codes already delivered.** Replacing a compromised TOTP secret requires reconfiguring 2FA at the underlying service.
+- There is no offline code generation; if the Worker or its dependencies are unavailable, fresh codes cannot be retrieved.
+- The Free plan has resource and CPU limits. For significant public-sharing traffic, apply additional edge-level access rules.
+
+## Backup and recovery
+
+**Back up both the D1 database and the original `DATA_ENCRYPTION_KEY` separately.** Losing the encryption key makes the encrypted secrets unrecoverable.
+
+For example, export D1 from a trusted machine:
+
+```sh
+npx wrangler d1 export totpnest --remote --output backup.sql
+```
+
+Keep exports in encrypted offline storage, **outside the repository**. Practice restoration with a separate test database before attempting a production recovery. Also retain the backup/recovery codes for important external accounts.
+
+Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing entry secrets and saved share tokens would otherwise become undecryptable. The repository does not automatically back up Cloudflare Secrets.
+
+## Validation
+
+```sh
+npm run check
+```
+
+The CI pipeline only validates code: TypeScript type checking, RFC 6238 and cryptography tests, D1 Sessions API routing/bookmark tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+
+## API overview
+
+| Method | Route | Access |
+| --- | --- | --- |
+| POST | `/api/admin/login` | Admin password |
+| POST | `/api/admin/logout` | Authenticated admin |
+| GET | `/api/admin/session` | Session status |
+| GET / POST | `/api/admin/entries` | Authenticated admin |
+| PUT / DELETE | `/api/admin/entries/:id` | Authenticated admin |
+| POST | `/api/admin/entries/:id/code` | Authenticated admin |
+| POST | `/api/admin/entries/:id/next` | Authenticated admin; final 5 seconds |
+| GET / POST | `/api/admin/shares` | Authenticated admin |
+| GET | `/api/admin/shares/:id/link` | Authenticated admin |
+| DELETE | `/api/admin/shares/:id` | Authenticated admin |
+| POST | `/api/share/:id/unlock` | Bearer token and share password |
+| POST | `/api/share/:id/code` | Bearer token; unlock ticket when protected |
+| POST | `/api/share/:id/next` | Same authorization; final 5 seconds |
+
+Clients cannot select arbitrary timestamps to retrieve unlimited future codes.
+
+## License
+
+The repository retains its original `LICENSE` file.

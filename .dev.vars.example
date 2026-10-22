@@ -1,0 +1,4 @@
+# Local development only; copy to .dev.vars (never commit actual values).
+# Use a random admin password (>= 16 characters) and a 32-byte base64url key.
+ADMIN_PASSWORD=REPLACE_WITH_A_LONG_RANDOM_PASSWORD
+DATA_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64URL_KEY
