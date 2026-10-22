@@ -14,8 +14,9 @@ describe('public UI', () => {
   it('shows the Share ID form instead of the admin login at the homepage', () => {
     const html = renderPath('/')
     expect(html).toContain('id="share-id-input"')
-    expect(html).toContain('Share IDs are case-sensitive.')
-    expect(html).toContain('Open a shared code')
+    expect(html).toContain('Use the exact uppercase and lowercase letters shown in your ID.')
+    expect(html).toContain('View a shared code')
+    expect(html).toContain('Switch to light mode')
     expect(html).not.toContain('Admin sign in')
     expect(html).not.toContain('href="/admin"')
   })
@@ -32,7 +33,8 @@ describe('public UI', () => {
 
   it('renders the share code view without an admin entry', () => {
     const html = renderPath('/s/aB7kP2mQ9xR4tY6vN8zW3c')
-    expect(html).toContain('One-time password')
+    expect(html).toContain('Verification code')
+    expect(html).toContain('Switch to light mode')
     expect(html).not.toContain('Admin sign in')
     expect(html).not.toContain('href="/admin"')
   })

@@ -49,6 +49,14 @@ Read replication may return an older list snapshot to a *new browser session wit
 
 Cloudflare documentation: https://developers.cloudflare.com/d1/best-practices/read-replication/#use-sessions-api
 
+## Appearance and everyday language
+
+- Dark and light modes are available on the homepage, shared-code pages, sign-in screen, and administrator dashboard.
+- The first visit follows the system color preference; manual theme choices are saved in the browser and reused on later visits.
+- A self-hosted script applies the saved theme before the page is shown, without changing the existing Content Security Policy or contacting the server.
+- User-facing labels, buttons, confirmations, help text, and common errors use clear everyday language. Less common verification-code options remain available under **Other code settings**.
+- Both themes retain square corners, and public pages continue to have no administrator entry point.
+
 ## Public routes and indexing
 
 - `/` shows a Share ID entry form. IDs are case-sensitive; valid IDs navigate to `/s/{shareId}` without calling an API during input.

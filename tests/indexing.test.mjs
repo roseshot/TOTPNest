@@ -26,6 +26,8 @@ describe('site-wide noindex and square-corner UI', () => {
     const css = load('../src/client/styles.css')
     expect(css).toContain('*{box-sizing:border-box;border-radius:0}')
     expect(css.match(/border-radius:/g)).toHaveLength(1)
+    expect(css).toContain(':root[data-theme="light"]')
+    expect(css).toContain('color-scheme:light')
   })
 
   it('does not expose links to administration from public screens', () => {

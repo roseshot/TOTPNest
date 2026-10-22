@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiFailure, copyText, request } from './api'
+import { readableError } from './messages'
 
 type CodeWindow = {
   code: string
@@ -61,7 +62,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     } catch (failure) {
       if (version === generation.current && active.current) {
         const err = failure as ApiFailure
-        setError(err.message)
+        setError(readableError(err))
         authError.current?.(err)
         retryAt.current = err.code === 'LOCKED' ? Number.POSITIVE_INFINITY : performance.now() + 3_000
       }
@@ -90,7 +91,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     } catch (failure) {
       if (version === generation.current && active.current) {
         const err = failure as ApiFailure
-        setError(err.code === 'TOO_EARLY' ? '' : err.message)
+        setError(err.code === 'TOO_EARLY' ? '' : readableError(err))
         authError.current?.(err)
         requestedFor.current = null
         retryAt.current = err.code === 'LOCKED' ? Number.POSITIVE_INFINITY : performance.now() + 1_500
@@ -168,14 +169,14 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     if (await copyText(current.code)) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1400)
-    } else setError('Copy failed. Please select the code manually.')
+    } else setError('Couldn't copy the code. Try selecting it instead.')
   }
 
-  return <section className="code-panel" aria-label="One-time password">
+  return <section className="code-panel" aria-label="Verification code">
     <div className="code-head">
-      <span>{preview ? 'Next code' : 'Current code'}</span>
+      <span>{preview ? 'Coming up next' : 'Your code'}</span>
       <span className={'status ' + (preview ? 'warning' : expired ? 'danger' : 'success')}>
-        {preview ? `${Math.ceil(remaining / 1000)} seconds until active` : expired ? 'Expired' : 'Valid now'}
+        {preview ? `${Math.ceil(remaining / 1000)} seconds until active` : expired ? 'Expired' : 'Ready to use'}
       </span>
     </div>
     <div className="code-main">
@@ -192,8 +193,8 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
       <div className={'progress-fill ' + (preview ? 'amber' : '')} style={{ width: percentage + '%' }} />
     </div>
     <div className="code-foot">
-      <span>{preview && current ? `Currently valid: ${display(current.code)}` : copied ? 'Copied' : 'Auto-refresh'}</span>
-      <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds' : 'Connecting...'}</span>
+      <span>{preview && current ? `Use this code now: ${display(current.code)}` : copied ? 'Copied' : 'Updates automatically'}</span>
+      <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds' : 'Loading your code...'}</span>
     </div>
     {error && <div className="message error" role="alert">{error}
       {Number.isFinite(retryAt.current) && <button className="link-button"
