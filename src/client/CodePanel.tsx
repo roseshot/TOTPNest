@@ -169,7 +169,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     if (await copyText(current.code)) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1400)
-    } else setError('Couldn't copy the code. Try selecting it instead.')
+    } else setError("Couldn't copy the code. Try selecting it instead.")
   }
 
   return <section className="code-panel" aria-label="Verification code">

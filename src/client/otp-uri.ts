@@ -12,7 +12,7 @@ export function parseOtpUri(value: string): EntryDraft {
   const uri = new URL(value.trim())
   if (uri.protocol !== 'otpauth:' || uri.hostname.toLowerCase() !== 'totp' ||
       uri.username || uri.password || uri.port || uri.hash) {
-    throw new Error('This setup link isn't supported. Try a link for a verification code.')
+    throw new Error("This setup link isn't supported. Try a link for a verification code.")
   }
   const params = uri.searchParams
   const label = decodeURIComponent(uri.pathname.replace(/^\//, ''))

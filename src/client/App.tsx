@@ -90,7 +90,7 @@ function PublicUnavailable({ invalidShare = false }: { invalidShare?: boolean })
   useEffect(() => { document.title = invalidShare ? 'TOTPNest | Link unavailable' : 'TOTPNest | Page not found' }, [invalidShare])
   return <main className="share-shell"><section className="card public-not-found center">
     <h1>{invalidShare ? 'Link unavailable' : 'Page not found'}</h1>
-    <p className="muted">{invalidShare ? 'Check your Share ID and try again.' : 'We couldn't find that page.'}</p>
+    <p className="muted">{invalidShare ? 'Check your Share ID and try again.' : "We couldn't find that page."}</p>
     <a className="public-back-link" href="/">Back to the start</a>
   </section></main>
 }
@@ -362,7 +362,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
   const filtered = entries.filter((item) =>
     (item.issuer + ' ' + item.account).toLocaleLowerCase().includes(search.toLocaleLowerCase()))
   const removeEntry = async (item: Entry) => {
-    if (!window.confirm('Delete this code and all its shared links? This can't be undone.')) return
+    if (!window.confirm("Delete this code and all its shared links? This can't be undone.")) return
     try {
       await request('/api/admin/entries/' + item.id, { method: 'DELETE' })
       setEditor(null); setSharing(false)
@@ -379,7 +379,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
   const copyLink = async (id: string) => {
     try {
       const link = await request<{ url: string }>('/api/admin/shares/' + id + '/link')
-      if (!await copyText(link.url)) throw new Error('Couldn't copy the link. Try again.')
+      if (!await copyText(link.url)) throw new Error("Couldn't copy the link. Try again.")
       setNotice('Link copied')
       window.setTimeout(() => setNotice(''), 1800)
     } catch (cause) { setError(message(cause)) }
