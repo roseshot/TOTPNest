@@ -52,7 +52,33 @@ Cloudflare documentation: https://developers.cloudflare.com/d1/best-practices/re
 
 ## Deployment
 
-Install dependencies, authenticate Wrangler, and create a D1 database:
+### Cloudflare Workers Builds (Git-connected deployments)
+
+Connect this repository in Cloudflare **Workers & Pages**, then configure **Settings > Builds**:
+
+| Setting | Value |
+| --- | --- |
+| Production branch | `main` |
+| Root directory | Repository root (`/`) |
+| Build command | `npm run check` |
+| Deploy command | `npm run deploy:worker` |
+
+Under **Build variables and secrets** for the production build, add both variables:
+
+| Build variable | Value |
+| --- | --- |
+| `D1_DATABASE_NAME` | The exact name of your existing Cloudflare D1 database |
+| `D1_DATABASE_ID` | The UUID of that same D1 database |
+
+The committed `wrangler.jsonc` deliberately contains placeholders for both fields. `npm run prepare:wrangler` validates the build variables and writes `wrangler.generated.jsonc` at the repository root. Wrangler deploys using only this generated configuration, which is gitignored. Missing or invalid build variables stop deployment before Wrangler starts. `npm run check` uses the placeholder template solely for a dry-run build, so GitHub Actions does not require access to production database identifiers.
+
+**Set the deploy command exactly as shown.** Cloudflare's default `npx wrangler deploy` does not use the generated configuration and must not be used for this setup. When Builds are enabled, each push to `main` triggers the configured build and deployment; GitHub Actions independently validates the code but does not deploy.
+
+Build variables are not Worker runtime secrets. Configure `ADMIN_PASSWORD` and `DATA_ENCRYPTION_KEY` separately in **Worker Settings > Variables and Secrets**, as secret values. The application's D1 binding remains `DB`; do not put the D1 UUID in a Worker runtime `vars` binding.
+
+### First deployment and migrations
+
+If the database does not already exist, create one first:
 
 ```sh
 npm install
@@ -60,19 +86,22 @@ npx wrangler login
 npx wrangler d1 create totpnest
 ```
 
-Replace `REPLACE_WITH_YOUR_D1_DATABASE_ID` in `wrangler.jsonc` with the newly created database ID.
-
-Apply the schema to your remote D1 database:
+Use the **same existing database name and UUID** in your Cloudflare build variables. For local CLI operations, export the two values in your shell (they are not read automatically from Cloudflare Builds or `.dev.vars`):
 
 ```sh
+export D1_DATABASE_NAME="totpnest"
+export D1_DATABASE_ID="your-existing-d1-database-uuid"
 npm run db:migrate:remote
 ```
 
-Set two independent **Worker Secrets**:
+Apply the remote migration before serving the application with real accounts. This operation is **not** included in automatic deployments; review and apply new migrations deliberately.
+
+Set two independent **Worker Secrets** in the Cloudflare dashboard or, when using the CLI, with the generated configuration:
 
 ```sh
-npx wrangler secret put ADMIN_PASSWORD
-npx wrangler secret put DATA_ENCRYPTION_KEY
+npm run prepare:wrangler
+npx wrangler secret put ADMIN_PASSWORD --config wrangler.generated.jsonc
+npx wrangler secret put DATA_ENCRYPTION_KEY --config wrangler.generated.jsonc
 ```
 
 - `ADMIN_PASSWORD`: use a unique, randomly generated password (20+ characters recommended; at least 16 are required by the Worker).
@@ -86,7 +115,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'
 
 **Never commit real passwords, encryption keys, TOTP secrets, backup exports, or account data.**
 
-Run the complete checks and deploy:
+Run the complete checks and deploy from a local shell with both D1 environment variables set:
 
 ```sh
 npm run check
@@ -95,11 +124,15 @@ npm run deploy
 
 In Cloudflare Dashboard, open **Workers & Pages > totpnest > Settings > Domains & Routes** and add your Custom Domain, such as `totp.example.com`. Visit `https://totp.example.com/admin`.
 
-This repository **does not deploy automatically**: the GitHub Actions workflow runs validation only. The checked-in Wrangler configuration contains a D1 placeholder, and no production secrets or domains are included. Disable unneeded preview endpoints and apply appropriate Cloudflare security rules before using real TOTP secrets.
+The repository deploys automatically only when **Cloudflare Workers Builds** has been enabled and configured as described above. GitHub Actions remains validation-only. No production D1 identifiers or runtime secrets are committed. Disable unneeded preview endpoints and apply appropriate Cloudflare security rules before using real TOTP secrets.
 
 ## Local development
 
+Provide `D1_DATABASE_NAME` and `D1_DATABASE_ID` in your **shell environment**, even when working with the local D1 emulator. Both local commands use the generated Wrangler configuration but keep database operations local by default:
+
 ```sh
+export D1_DATABASE_NAME="totpnest"
+export D1_DATABASE_ID="your-existing-d1-database-uuid"
 cp .dev.vars.example .dev.vars
 # Replace both placeholders in .dev.vars with test-only credentials.
 npm run db:migrate:local
@@ -143,7 +176,8 @@ A next code preview may **not be accepted** by the target service before its tim
 For example, export D1 from a trusted machine:
 
 ```sh
-npx wrangler d1 export totpnest --remote --output backup.sql
+npm run prepare:wrangler
+npx wrangler d1 export DB --remote --config wrangler.generated.jsonc --output backup.sql
 ```
 
 Keep exports in encrypted offline storage, **outside the repository**. Practice restoration with a separate test database before attempting a production recovery. Also retain the backup/recovery codes for important external accounts.
@@ -156,7 +190,7 @@ Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing en
 npm run check
 ```
 
-The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
 
 ## API overview
 

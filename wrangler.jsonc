@@ -19,8 +19,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "totpnest",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_name": "__D1_DATABASE_NAME__",
+      "database_id": "__D1_DATABASE_ID__",
       "migrations_dir": "migrations"
     }
   ]
