@@ -1,2 +1,4 @@
+# Permit compliant crawlers to discover the noindex meta tag and response header.
+# Blocking crawling here would prevent search engines from observing noindex.
 User-agent: *
-Disallow: /
+Allow: /

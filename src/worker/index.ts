@@ -177,7 +177,7 @@ app.use('/api/*', async (c, next) => {
   c.header('Pragma', 'no-cache')
   c.header('X-Content-Type-Options', 'nosniff')
   c.header('Referrer-Policy', 'no-referrer')
-  c.header('X-Robots-Tag', 'noindex, nofollow')
+  c.header('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex')
   const session = openSession(c.env.DB, new URL(c.req.url).pathname,
     c.req.method, c.req.header(BOOKMARK_HEADER) ?? null)
   c.set('db', session)
@@ -379,7 +379,7 @@ app.onError((error, c) => {
     status, headers: { 'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store, private', 'Pragma': 'no-cache',
       'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
-      'X-Robots-Tag': 'noindex, nofollow',
+      'X-Robots-Tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex',
       ...(error instanceof ApiError && error.retryAfterSeconds
         ? { 'Retry-After': String(error.retryAfterSeconds) } : {}) }
   })

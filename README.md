@@ -18,6 +18,8 @@ A **browser-only, single-administrator TOTP manager** built on Cloudflare Worker
 - The initial request fetches only the **current code**. The page requests the **next code** only during the **final five seconds** of the current period.
 - The next code is visibly marked as **not yet active**, and the copy button always copies the currently valid code.
 - The browser updates the countdown locally; no per-second API polling or WebSocket is required.
+- The public homepage (`/`) accepts a Share ID; `/admin` is the only administrator UI route, with no admin navigation on public pages.
+- All UI elements have square corners. Public HTML, static resources, and API responses contain `noindex` directives.
 - Share-code and unlock endpoints have a Cloudflare-native rate limit to reduce abusive D1 reads without writing to D1 on each successful code view.
 - After five incorrect admin or share-password attempts from a visitor IP within 30 minutes, block that visitor for 30 minutes. Successful share unlocks do not reset the visitor-wide failure budget.
 - After ten unavailable share ID requests from a visitor IP within 24 hours, block that visitor from share access for 24 hours.
@@ -46,6 +48,17 @@ TOTPNest uses the D1 **Sessions API** rather than querying the D1 binding direct
 Read replication may return an older list snapshot to a *new browser session without a bookmark*. The browser bookmark is scoped to the admin tab's session storage and is never sent from public share pages.
 
 Cloudflare documentation: https://developers.cloudflare.com/d1/best-practices/read-replication/#use-sessions-api
+
+## Public routes and indexing
+
+- `/` shows a Share ID entry form. IDs are case-sensitive; valid IDs navigate to `/s/{shareId}` without calling an API during input.
+- `/s/{shareId}` displays the public code page or password challenge. Unknown or invalid pages display public-only error messages.
+- `/admin` is the **only** UI path displaying the administrator sign-in form or dashboard. Public pages never link to the administrative area.
+- All UI controls, cards, badges, and progress bars use **square corners**.
+
+Search indexing is discouraged by an HTML `<meta name="robots" content="noindex, ...">` element, `X-Robots-Tag` on static assets, and the same header on Worker API responses. `robots.txt` allows crawling so compliant search engines can **see** the `noindex` directive. Blocking crawler access in `robots.txt` would prevent Google from observing `noindex` and could cause URLs linked elsewhere to remain discoverable in search results. This does not guarantee that every crawler will comply, and it does not provide confidentiality or authorization.
+
+Reference: https://developers.google.com/search/docs/crawling-indexing/block-indexing
 
 ## Requirements
 
@@ -219,7 +232,7 @@ Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing en
 npm run check
 ```
 
-The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, share deletion and expiration cleanup, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, share deletion and expiration cleanup, public route isolation, square-corner styles, indexing headers, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
 
 ## API overview
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } fr
 import jsQR from 'jsqr'
 import { ApiFailure, copyText, request } from './api'
 import { CodePanel } from './CodePanel'
+import { routeForPath, sharePathForId } from './routes'
 import { parseOtpUri, type EntryDraft } from './otp-uri'
 
 type Entry = {
@@ -41,9 +42,59 @@ async function importQr(file: File): Promise<EntryDraft> {
   }
 }
 
+function ShareIdHome() {
+  const [shareId, setShareId] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => { document.title = 'TOTPNest | Open a shared code' }, [])
+
+  const openShare = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const path = sharePathForId(shareId)
+    if (!path) {
+      setError('Enter a valid 22-character Share ID or 32-character legacy ID.')
+      return
+    }
+    window.location.assign(path)
+  }
+
+  return <main className="share-shell public-home">
+    <section className="card public-card" aria-labelledby="share-entry-title">
+      <div className="public-wordmark"><span className="public-symbol" aria-hidden="true">◇</span>TOTPNest</div>
+      <p className="public-kicker">PRIVATE CODE ACCESS</p>
+      <h1 id="share-entry-title">Open a shared code</h1>
+      <p className="muted public-lead">Enter the Share ID provided to you to access a time-based one-time code.</p>
+      <form className="public-form" onSubmit={openShare}>
+        <label htmlFor="share-id-input">Share ID</label>
+        <input id="share-id-input" name="shareId" type="text" autoFocus autoComplete="off"
+          autoCapitalize="none" spellCheck={false} maxLength={32} value={shareId}
+          placeholder="Enter your Share ID"
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? 'share-id-help share-id-error' : 'share-id-help'}
+          onChange={(event) => { setShareId(event.target.value); setError('') }} />
+        <p className="muted small" id="share-id-help">Share IDs are case-sensitive.</p>
+        {error && <p className="message error" role="alert" id="share-id-error">{error}</p>}
+        <button className="primary" type="submit" disabled={!shareId.trim()}>
+          Open shared code <span aria-hidden="true">→</span>
+        </button>
+      </form>
+      <p className="muted small public-caution">Password-protected shares require an additional password.</p>
+    </section>
+  </main>
+}
+
+function PublicUnavailable({ invalidShare = false }: { invalidShare?: boolean }) {
+  useEffect(() => { document.title = invalidShare ? 'TOTPNest | Link unavailable' : 'TOTPNest | Page not found' }, [invalidShare])
+  return <main className="share-shell"><section className="card public-not-found center">
+    <h1>{invalidShare ? 'Link unavailable' : 'Page not found'}</h1>
+    <p className="muted">{invalidShare ? 'This Share ID is not valid.' : 'The requested page does not exist.'}</p>
+    <a className="public-back-link" href="/">Enter a Share ID</a>
+  </section></main>
+}
+
 function SharePage({ id }: { id: string }) {
   useEffect(() => {
-    document.title = 'Code'
+    document.title = 'TOTPNest | Shared code'
     // Older links may contain a token fragment; never retain it in the address bar.
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
@@ -85,9 +136,10 @@ function SharePage({ id }: { id: string }) {
     } finally { setBusy(false) }
   }
 
-  if (!/^(?:[A-Za-z0-9]{22}|[0-9a-f]{32})$/.test(id) || unavailable) {
+  if (unavailable) {
     return <main className="share-shell"><div className="card center">
       <h2>Link unavailable</h2><p className="muted">This link does not exist, has expired, or was revoked.</p>
+      <a className="public-back-link" href="/">Enter another Share ID</a>
     </div></main>
   }
   return <main className="share-shell">
@@ -399,6 +451,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 function AdminApp() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null)
   useEffect(() => {
+    document.title = 'TOTPNest | Admin'
     request<{ authenticated: boolean }>('/api/admin/session')
       .then((data) => setAuthenticated(data.authenticated)).catch(() => setAuthenticated(false))
   }, [])
@@ -408,6 +461,12 @@ function AdminApp() {
 }
 
 export function App() {
-  const match = /^\/s\/([^/]+)\/?$/.exec(window.location.pathname)
-  return match ? <SharePage id={match[1]} /> : <AdminApp />
+  const route = routeForPath(window.location.pathname)
+  switch (route.kind) {
+    case 'home': return <ShareIdHome />
+    case 'admin': return <AdminApp />
+    case 'share': return <SharePage id={route.id} />
+    case 'invalid-share': return <PublicUnavailable invalidShare />
+    default: return <PublicUnavailable />
+  }
 }

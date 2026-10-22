@@ -1,0 +1,40 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { App } from '../src/client/App'
+
+function renderPath(pathname: string): string {
+  vi.stubGlobal('window', { location: { pathname } })
+  vi.stubGlobal('sessionStorage', { getItem: () => null })
+  return renderToStaticMarkup(<App />)
+}
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('public UI', () => {
+  it('shows the Share ID form instead of the admin login at the homepage', () => {
+    const html = renderPath('/')
+    expect(html).toContain('id="share-id-input"')
+    expect(html).toContain('Share IDs are case-sensitive.')
+    expect(html).toContain('Open a shared code')
+    expect(html).not.toContain('Admin sign in')
+    expect(html).not.toContain('href="/admin"')
+  })
+
+  it('never renders administrator controls for unknown paths', () => {
+    for (const path of ['/unknown', '/s/invalid']) {
+      const html = renderPath(path)
+      expect(html).toContain('href="/"')
+      expect(html).not.toContain('Admin sign in')
+      expect(html).not.toContain('Sign out')
+      expect(html).not.toContain('href="/admin"')
+    }
+  })
+
+  it('renders the share code view without an admin entry', () => {
+    const html = renderPath('/s/aB7kP2mQ9xR4tY6vN8zW3c')
+    expect(html).toContain('One-time password')
+    expect(html).not.toContain('Admin sign in')
+    expect(html).not.toContain('href="/admin"')
+  })
+})
+
