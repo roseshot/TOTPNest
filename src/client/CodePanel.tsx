@@ -252,7 +252,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
       <strong className="next-code-digits" aria-live="off">{previewCode}</strong>
     </div> : expiringSoon && <p className="code-expiry-note" role="status">
       This code is about to change. The next code will appear when it's ready.
-    </p>
+    </p>}
     {manualCopy && current && !expired && <div className="manual-code" role="group" aria-label="Copy code manually">
       <label htmlFor="manual-code-value">Couldn't copy automatically. Select the code below to copy it.</label>
       <input id="manual-code-value" type="text" readOnly autoFocus value={current.code}
