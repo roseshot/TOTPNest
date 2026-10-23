@@ -76,7 +76,7 @@ The public site is separate from `/admin`. Visitors can enter a case-sensitive S
 
 1. Open a provided `/s/{shareId}` link, or enter its Share ID at `/`. Letter case matters.
 2. If the owner protected the link, enter the separate share password; **no recipient account** is needed.
-3. Copy the **currently valid** code. The countdown runs locally; a pending next code is never displayed before it becomes valid.
+3. Copy the **currently valid** code. One progress bar and a seconds-remaining label show the countdown. During the last five seconds, the next code appears separately as **not active yet**; it becomes current automatically at rollover.
 4. Ask the sender for a replacement if the share was revoked or expired.
 
 ### Request and storage architecture
@@ -127,9 +127,9 @@ For a working instance, create or select your D1 database, set `D1_DATABASE_NAME
 - Share URLs use a 22-character case-sensitive Base62 ID with approximately 131 bits of randomness, without a separate URL token.
 - **Public links:** anyone holding the URL can view the shared code.
 - **Password-protected links:** recipients must also enter a dedicated share password. No guest sign-up is required.
-- The share page **never shows issuer, service, or account details**. It displays the code, copy control, status, countdown, and progress bar.
-- The initial request fetches only the **current code**. The page requests the **next code** only during the **final five seconds** of the current period.
-- Future codes are not shown before becoming active, and the copy button always copies the currently valid code.
+- The share page **never shows issuer, service, or account details**. It displays the current code, copy control, status, and **one progress-bar countdown** (no circular timer).
+- The initial request fetches only the **current code**. The page requests and previews the **next code** during the **final five seconds** of the current period.
+- An upcoming code is shown separately with a **not active yet** label. The copy button always copies the currently valid code; when time expires, the upcoming code replaces it automatically.
 - The browser updates the countdown locally; no per-second API polling or WebSocket is required.
 - The public homepage (`/`) accepts a Share ID; `/admin` is the only administrator UI route, with no admin navigation on public pages.
 - The interface uses the TOTPNest blue-and-cyan nest mark, rounded surfaces, responsive layouts, and the free Inter font loaded from Google Fonts with system-font fallbacks. Public HTML, static resources, and API responses contain `noindex` directives.
@@ -320,12 +320,12 @@ The Inter typeface is fetched from a free Google Fonts CDN. Font requests are ma
 2. Choose **Share**, optionally require an access password, choose an expiration period, and add a private admin note.
 3. Send the generated link to the recipient. Its path contains a case-sensitive, cryptographically random 22-character Base62 share ID; no URL token is needed.
 4. The recipient opens the link. A password prompt is shown only for password-protected shares.
-5. The page receives the current code from the Worker. Only in the final five seconds of the period does it request the next code, without showing it before it becomes valid.
+5. The page displays the current code with one progress-bar countdown. During the last five seconds, it requests and previews the next code, clearly marked as not yet active.
 6. Revoking a link immediately blocks new requests; expiration blocks access at the configured time. The associated D1 records are cleaned up during the daily UTC-midnight Cron Trigger.
 
 The Worker checks share-ID existence, password-unlock tickets (when applicable), expiration, revocation, and visitor lockouts **on every code request**. Expiration never depends on whether background cleanup has run. Share pages and visitor APIs do not return issuer, account, or TOTP secret.
 
-The next code is kept out of view until it becomes valid. The copy button always copies the current code.
+The next code preview is informational and must not be used before its countdown reaches zero. The copy button always copies the current valid code; the preview takes over automatically when its time starts.
 
 ## Security model and limitations
 

@@ -182,6 +182,41 @@ describe('groups and successful shared-code views', () => {
     } finally { sqlite.close() }
   })
 
+  it('previews the next code only in the final five seconds and handles rollover', async () => {
+    const { env } = database()
+    const windowStart = 1_800_000_000_000
+    const expectedExpiry = windowStart + 30_000
+    vi.spyOn(Date, 'now').mockReturnValue(windowStart + 24_000)
+    const cookie = await admin(env)
+    const entryId = (await (await adminRequest(env, '/api/admin/entries', cookie, 'POST', newCode())).json()).id
+    const shareId = (await (await adminRequest(env, '/api/admin/shares', cookie, 'POST',
+      { entryId, note: '', expiresInHours: 0 })).json()).id
+    const endpoint = '/api/share/' + shareId + '/next'
+
+    const early = await post(env, endpoint, { expectedExpiry })
+    expect(early.status).toBe(425)
+    expect((await early.json()).code).toBe('TOO_EARLY')
+
+    vi.mocked(Date.now).mockReturnValue(windowStart + 25_200)
+    const upcoming = await post(env, endpoint, { expectedExpiry })
+    expect(upcoming.status).toBe(200)
+    const preview = await upcoming.json()
+    expect(preview.kind).toBe('next')
+    expect(preview.validFrom).toBe(expectedExpiry)
+    expect(preview.expiresAt).toBe(expectedExpiry + 30_000)
+
+    // A response arriving after rollover is the current code, not another future code.
+    vi.mocked(Date.now).mockReturnValue(windowStart + 30_050)
+    const rolled = await post(env, endpoint, { expectedExpiry })
+    expect(rolled.status).toBe(200)
+    const active = await rolled.json()
+    expect(active.kind).toBe('current')
+    expect(active.code).toBe(preview.code)
+    expect(active.validFrom).toBe(expectedExpiry)
+    const shares = await adminRequest(env, '/api/admin/shares', cookie)
+    expect((await shares.json()).shares[0].viewCount).toBe(0)
+  })
+
   it('counts one successful code view per page visit, not per automatic refresh or retry', async () => {
     const { sqlite, env } = database()
     try {

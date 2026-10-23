@@ -1,13 +1,35 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createElement } from 'react'
-import { CodePanel, currentCodeText } from '../src/client/CodePanel'
+import { CodePanel, currentCodeText, upcomingCodeText } from '../src/client/CodePanel'
 
 describe('code display UX', () => {
   it('displays only the current valid code and masks expired or missing codes', () => {
     expect(currentCodeText({ code: '123456', expiresAt: 30_000 }, 24_000)).toBe('123 456')
     expect(currentCodeText({ code: '123456', expiresAt: 30_000 }, 30_000)).toBe('••• •••')
     expect(currentCodeText(null, 0)).toBe('••• •••')
+  })
+
+  it('previews the next code only during the last five seconds of the current code', () => {
+    const current = { code: '123456', expiresAt: 30_000 }
+    const next = { code: '987654', validFrom: 30_000, expiresAt: 60_000, kind: 'next' as const }
+    expect(upcomingCodeText(current, next, 24_999)).toBeNull()
+    expect(upcomingCodeText(current, next, 25_000)).toBe('987 654')
+    expect(upcomingCodeText(current, next, 29_999)).toBe('987 654')
+    expect(currentCodeText(current, 29_999)).toBe('123 456')
+    expect(upcomingCodeText(current, next, 30_000)).toBeNull()
+    expect(currentCodeText(current, 30_000)).toBe('••• •••')
+  })
+
+  it('never previews a stale, invalid or mismatched upcoming code', () => {
+    const current = { expiresAt: 30_000 }
+    const next = { code: '987654', validFrom: 30_000, expiresAt: 60_000, kind: 'next' as const }
+    expect(upcomingCodeText(null, next, 27_000)).toBeNull()
+    expect(upcomingCodeText(current, null, 27_000)).toBeNull()
+    expect(upcomingCodeText(current, { ...next, kind: 'current' }, 27_000)).toBeNull()
+    expect(upcomingCodeText(current, { ...next, validFrom: 29_000 }, 27_000)).toBeNull()
+    expect(upcomingCodeText(current, { ...next, expiresAt: 30_000 }, 27_000)).toBeNull()
+    expect(upcomingCodeText(current, next, 31_000)).toBeNull()
   })
 
   it('labels loading state accurately and offers an accessible copy action', () => {
@@ -18,6 +40,9 @@ describe('code display UX', () => {
     expect(html).not.toContain('Next code')
     expect(html).toContain('Loading')
     expect(html).toContain('aria-label="Copy current code"')
+    expect(html).toContain('aria-label="Time remaining for current code"')
+    expect(html.match(/role="progressbar"/g)).toHaveLength(1)
+    expect(html).not.toContain('class="timer-ring"')
     expect(html).toContain('disabled=""')
     expect(html).not.toContain('Ready to use')
   })

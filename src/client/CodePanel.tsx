@@ -18,9 +18,23 @@ function display(code: string): string {
   return code.slice(0, midpoint) + ' ' + code.slice(midpoint)
 }
 
-/** Never show a future or expired value in the primary code position. */
+const NEXT_PREVIEW_WINDOW_MS = 5_000
+
+/** Always keep the currently valid code in the main position. */
 export function currentCodeText(frame: Pick<CodeWindow, 'code' | 'expiresAt'> | null, now: number): string {
   return frame && now < frame.expiresAt ? display(frame.code) : '••• •••'
+}
+
+/** Show the upcoming code separately, only during the last five seconds of the current code. */
+export function upcomingCodeText(
+  current: Pick<CodeWindow, 'expiresAt'> | null,
+  next: Pick<CodeWindow, 'code' | 'validFrom' | 'expiresAt' | 'kind'> | null,
+  now: number
+): string | null {
+  if (!current || !next || next.kind !== 'next' ||
+      next.validFrom !== current.expiresAt || next.expiresAt <= next.validFrom ||
+      now >= current.expiresAt || current.expiresAt - now > NEXT_PREVIEW_WINDOW_MS) return null
+  return display(next.code)
 }
 
 export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
@@ -108,7 +122,11 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
       if (version !== generation.current || !active.current) return
       const adjusted = { ...frame, serverNow: frame.serverNow + (performance.now() - startedAt) / 2 }
       if (frame.kind === 'current') applyCurrent(adjusted)
-      else { setNext(frame); setError('') }
+      else if (frame.kind === 'next' && frame.validFrom === expiry &&
+               frame.expiresAt > frame.validFrom) {
+        setNext(adjusted)
+        setError('')
+      } else throw new Error('The upcoming code is not available. Please try again.')
     } catch (failure) {
       if (version === generation.current && active.current) {
         const err = failure as ApiFailure
@@ -158,7 +176,8 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const remaining = current ? Math.max(0, current.expiresAt - now) : 0
   const lifetime = current ? current.expiresAt - current.validFrom : 30_000
   const percentage = Math.min(100, Math.max(0, remaining / lifetime * 100))
-  const expiringSoon = current !== null && remaining > 0 && remaining <= 5_000
+  const expiringSoon = current !== null && remaining > 0 && remaining <= NEXT_PREVIEW_WINDOW_MS
+  const previewCode = upcomingCodeText(current, next, now)
   const expired = current !== null && now >= current.expiresAt
 
   useEffect(() => {
@@ -167,8 +186,8 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
       return
     }
     if (expired) {
-      if (next && next.validFrom === current.expiresAt) {
-        // Exact local rollover: no additional request until the new code's final five seconds.
+      if (next && next.validFrom === current.expiresAt && now < next.expiresAt) {
+        // Use the prefetched code right at rollover, without an extra network request.
         applyCurrent({
           ...next, serverNow: now, validFrom: next.validFrom,
           expiresAt: next.expiresAt
@@ -179,7 +198,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
       }
       return
     }
-    if (remaining <= 5_000 && remaining > 0 && !next && !flight.current &&
+    if (remaining <= NEXT_PREVIEW_WINDOW_MS && remaining > 0 && !next && !flight.current &&
         requestedFor.current !== current.expiresAt && performance.now() >= retryAt.current) {
       void fetchNext(current.expiresAt)
     }
@@ -211,27 +230,29 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
         <span className="code-label">Current code</span>
         <div className="code-digits" aria-live="off">{currentCodeText(current, now)}</div>
       </div>
-      <div className="timer-ring"
-        role="timer" aria-label={current && !expired ? Math.ceil(remaining / 1000) + ' seconds remaining' : 'Code loading'}
-        style={{ background: 'conic-gradient(var(--timer-accent) ' + percentage + '%, var(--ring-track) 0)' }}>
-        <div className="timer-inner"><strong>{current && !expired ? Math.ceil(remaining / 1000) : '–'}</strong><small>sec</small></div>
-      </div>
     </div>
     <button type="button" className="code-copy" disabled={!current || expired}
       onClick={() => void doCopy()} aria-label="Copy current code">
       <span aria-hidden="true">▣</span> {copied ? 'Copied' : 'Copy code'}
     </button>
-    <div className="progress" role="progressbar" aria-label="Code validity remaining"
-      aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percentage)}>
+    <div className="progress" role="progressbar" aria-label="Time remaining for current code"
+      aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percentage)}
+      aria-valuetext={current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : 'Waiting for a code'}>
       <div className={'progress-fill ' + (expiringSoon ? 'amber' : '')} style={{ width: percentage + '%' }} />
     </div>
     <div className="code-foot">
       <span role="status" aria-live="polite">{copied ? 'Copied to clipboard' : 'Updates automatically'}</span>
       <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : error ? "Couldn't load the code" : 'Loading your code...'}</span>
     </div>
-    {expiringSoon && <p className="code-expiry-note" role="status">
-      This code is about to change. Wait for the new one if you need more time.
-    </p>}
+    {previewCode ? <div className="next-code-preview" aria-label="Upcoming code">
+      <div className="next-code-details">
+        <span className="next-code-label">Next code</span>
+        <small>Not active yet · Available in {Math.ceil(remaining / 1000)} seconds</small>
+      </div>
+      <strong className="next-code-digits" aria-live="off">{previewCode}</strong>
+    </div> : expiringSoon && <p className="code-expiry-note" role="status">
+      This code is about to change. The next code will appear when it's ready.
+    </p>
     {manualCopy && current && !expired && <div className="manual-code" role="group" aria-label="Copy code manually">
       <label htmlFor="manual-code-value">Couldn't copy automatically. Select the code below to copy it.</label>
       <input id="manual-code-value" type="text" readOnly autoFocus value={current.code}

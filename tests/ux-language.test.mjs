@@ -36,8 +36,12 @@ describe('task-focused interface language and flows', () => {
 
   it('prioritizes the usable code and the primary task on small screens', () => {
     expect(code).toContain('This code is about to change.')
-    expect(code).not.toContain('display(next.code)')
+    expect(code).toContain('return display(next.code)')
+    expect(code).toContain('Not active yet')
     expect(code).toContain('Copy code manually')
+    expect(code).toContain("send('next'")
+    expect(css).toContain('.next-code-preview')
+    expect(css).not.toContain('.timer-ring')
     expect(css).toContain('.hero-banner, .metric-grid { display: none; }')
   })
 })
