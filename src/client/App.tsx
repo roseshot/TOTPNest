@@ -18,7 +18,8 @@ type Entry = {
 }
 type Share = {
   id: string; entryId: string; issuer: string; account: string; protected: boolean;
-  note: string; expiresAt: number | null; revokedAt: number | null; createdAt: number; viewCount: number
+  note: string; expiresAt: number | null; revokedAt: number | null; createdAt: number;
+  viewCount: number; uniqueVisitors: number
 }
 const emptyDraft: EntryDraft = { issuer: '', account: '', secret: '', algorithm: 'SHA1', digits: 6, period: 30 }
 
@@ -856,8 +857,11 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
                   <span className="muted small">{share.protected ? 'Password required' : 'Anyone with the link'}
                     {share.note ? ' · ' + share.note : ''} · {share.expiresAt !== null
                       ? 'Expires ' + formattedDate(share.expiresAt) : 'Does not expire'}</span>
-                  <span className="share-views" title="Times someone opened the link and viewed a code. Automatic code updates aren't counted.">
-                    Views: {share.viewCount}
+                  <span className="share-views"
+                    title="Views count successful code views. UV estimates unique browsers; it starts counting when UV tracking is enabled.">
+                    <span>Views: {share.viewCount}</span>
+                    <span aria-hidden="true">·</span>
+                    <span><abbr title="Unique visitors (estimated by browser)">UV</abbr>: {share.uniqueVisitors}</span>
                   </span></div>
               </div>
               <div className="share-actions">

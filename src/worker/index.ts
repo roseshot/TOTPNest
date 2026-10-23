@@ -33,6 +33,7 @@ const app = new Hono<Environment>()
 const MIN_PASSWORD_LENGTH = 16
 const SESSION_MS = 7 * 24 * 60 * 60_000
 const NEXT_THRESHOLD_MS = 5_000
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function requireConfig(c: Ctx) {
   let validKey = false
@@ -357,13 +358,16 @@ app.get('/api/admin/shares', async (c) => {
     shares.expires_at, shares.revoked_at, shares.created_at,
     (shares.password_hash IS NOT NULL) AS protected,
     (SELECT COUNT(*) FROM share_visits WHERE share_id = shares.id) AS view_count,
+    (SELECT COUNT(DISTINCT visitor_hash) FROM share_visits
+      WHERE share_id = shares.id) AS unique_visitors,
     entries.issuer, entries.account
     FROM shares JOIN entries ON entries.id = shares.entry_id
     WHERE shares.revoked_at IS NULL AND (shares.expires_at IS NULL OR shares.expires_at > ?)
     ORDER BY shares.created_at DESC`).bind(Date.now()).all()
   return c.json({ shares: rows.results.map((row) => ({
     id: row.id, entryId: row.entry_id, note: row.note, expiresAt: row.expires_at,
-    revokedAt: row.revoked_at, createdAt: row.created_at, viewCount: Number(row.view_count),
+    revokedAt: row.revoked_at, createdAt: row.created_at,
+    viewCount: Number(row.view_count), uniqueVisitors: Number(row.unique_visitors),
     protected: Boolean(row.protected), issuer: row.issuer, account: row.account
   })) })
 })
@@ -438,16 +442,21 @@ app.post('/api/share/:id/code', async (c) => {
   const share = await getShare(c)
   await requireUnlocked(c, share)
   const response = await codeFor(c, await getEntry(c, share.entry_id))
-  // A page generates one random visit ID; automatic code refreshes reuse it.
-  // Only successful, authorized code views are counted. Never store visitor identity or IP.
+  // Each visit counts once; an anonymous browser ID estimates unique visitors.
+  // Only successful authorized code views are counted. Never store IPs or user agents.
   const visitId = c.req.header('X-Share-Visit')
-  if (visitId && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(visitId)) {
+  if (visitId && UUID_V4_PATTERN.test(visitId)) {
     try {
+      const visitorId = c.req.header('X-Share-Visitor')
+      // Scope the hash to each share so the database cannot correlate other links.
+      const visitorHash = visitorId && UUID_V4_PATTERN.test(visitorId)
+        ? await sha256('share-visitor-v1:' + share.id + ':' + visitorId.toLowerCase())
+        : null
       await c.var.db.prepare(
-        'INSERT OR IGNORE INTO share_visits (share_id, visit_id, viewed_at) VALUES (?, ?, ?)'
-      ).bind(share.id, visitId.toLowerCase(), Date.now()).run()
+        'INSERT OR IGNORE INTO share_visits (share_id, visit_id, visitor_hash, viewed_at) VALUES (?, ?, ?, ?)'
+      ).bind(share.id, visitId.toLowerCase(), visitorHash, Date.now()).run()
     } catch {
-      // Statistics must never stop a valid verification code from being displayed.
+      // Analytics must never prevent a valid verification code from being displayed.
     }
   }
   return response

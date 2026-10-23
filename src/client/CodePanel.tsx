@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiFailure, copyText, request } from './api'
 import { readableError } from './messages'
+import { visitorIdForShare } from './visitor'
 
 type CodeWindow = {
   code: string
@@ -35,6 +36,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const requestedFor = useRef<number | null>(null)
   // New ID for each public page view. Reused across code changes and network retries.
   const visitId = useRef<string | null>(null)
+  const visitorId = useRef<Promise<string> | null>(null)
   const retryAt = useRef(0)
   const active = useRef(true)
   const authError = useRef(onAuthError)
@@ -51,13 +53,17 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     retryAt.current = 0
   }, [])
 
-  const send = useCallback((suffix: 'code' | 'next', expectedExpiry?: number, signal?: AbortSignal) => {
-    if (suffix === 'code' && endpoint.startsWith('/api/share/') && !visitId.current) {
-      visitId.current = crypto.randomUUID()
-    }
+  const send = useCallback(async (
+    suffix: 'code' | 'next', expectedExpiry?: number, signal?: AbortSignal
+  ): Promise<CodeWindow> => {
+    const publicCode = suffix === 'code' && endpoint.startsWith('/api/share/')
+    if (publicCode && !visitId.current) visitId.current = crypto.randomUUID()
+    if (publicCode && !visitorId.current) visitorId.current = visitorIdForShare(endpoint)
+    // Keep the same IDs across automatic refreshes and retries for this page.
+    const browserId = publicCode && visitorId.current ? await visitorId.current : undefined
     return request<CodeWindow>(endpoint + '/' + suffix, {
       method: 'POST', unlock, signal,
-      ...(suffix === 'code' && endpoint.startsWith('/api/share/') ? { visitId: visitId.current || undefined } : {}),
+      ...(publicCode ? { visitId: visitId.current || undefined, visitorId: browserId } : {}),
       ...(suffix === 'next' ? { body: { expectedExpiry } } : {})
     })
   }, [endpoint, unlock])

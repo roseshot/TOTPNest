@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../src/worker/index'
 import { base64url } from '../src/worker/crypto'
 
-const migrations = ['0001_init.sql', '0002_share_ids.sql', '0003_share_cleanup.sql', '0004_groups_and_views.sql']
+const migrations = ['0001_init.sql', '0002_share_ids.sql', '0003_share_cleanup.sql', '0004_groups_and_views.sql', '0005_share_unique_visitors.sql']
 const origin = 'https://totpnest.example'
 const adminPassword = 'test-only-admin-password-123456'
 const masterKey = base64url(new Uint8Array(32).fill(7))
@@ -72,6 +72,38 @@ const newCode = (groupId = null) => ({
 afterEach(() => vi.restoreAllMocks())
 
 describe('groups and successful shared-code views', () => {
+  it('migrates existing view receipts without changing their counts', () => {
+    const sqlite = new DatabaseSync(':memory:')
+    try {
+      for (const name of migrations.slice(0, 4)) {
+        sqlite.exec(readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8'))
+      }
+      sqlite.prepare(`INSERT INTO entries (
+        id, issuer, account, algorithm, digits, period, secret_nonce, secret_ciphertext, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        'legacy-entry', 'Example', 'one@example.com', 'SHA1', 6, 30, 'nonce', 'cipher', 1, 1
+      )
+      sqlite.prepare(`INSERT INTO shares (
+        id, public_id, entry_id, token_hash, token_nonce, token_ciphertext, note, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        'legacy-share', '11111111-2222-4333-8444-555555555555', 'legacy-entry',
+        'legacy-token-hash', '', '', '', 1
+      )
+      sqlite.prepare(
+        'INSERT INTO share_visits (share_id, visit_id, viewed_at) VALUES (?, ?, ?)'
+      ).run('legacy-share', visitOne, 123)
+      sqlite.exec(readFileSync(new URL('../migrations/0005_share_unique_visitors.sql', import.meta.url), 'utf8'))
+      const receipt = sqlite.prepare('SELECT visit_id, visitor_hash FROM share_visits').get()
+      expect(receipt).toEqual({ visit_id: visitOne, visitor_hash: null })
+      expect(sqlite.prepare(
+        'SELECT COUNT(DISTINCT visitor_hash) AS uv FROM share_visits WHERE share_id = ?'
+      ).get('legacy-share').uv).toBe(0)
+      expect(sqlite.prepare(
+        'SELECT COUNT(*) AS views FROM share_visits WHERE share_id = ?'
+      ).get('legacy-share').views).toBe(1)
+    } finally { sqlite.close() }
+  })
+
   it('keeps existing codes ungrouped during the additive migration', () => {
     const sqlite = new DatabaseSync(':memory:')
     try {
@@ -168,12 +200,75 @@ describe('groups and successful shared-code views', () => {
       expect((await post(env, endpoint, {}, '', { 'X-Share-Visit': visitTwo })).status).toBe(200)
       const listed = await adminRequest(env, '/api/admin/shares', cookie)
       expect((await listed.json()).shares[0].viewCount).toBe(2)
+      expect((await adminRequest(env, '/api/admin/shares', cookie).then(r => r.json())).shares[0].uniqueVisitors).toBe(0)
       expect(sqlite.prepare('SELECT COUNT(*) AS n FROM share_visits WHERE share_id=?').get(id).n).toBe(2)
 
       // A revoked link never increments its views, and the receipts follow the share on cleanup.
       expect((await adminRequest(env, '/api/admin/shares/' + id, cookie, 'DELETE')).status).toBe(200)
       expect((await post(env, endpoint, {}, '', { 'X-Share-Visit': crypto.randomUUID() })).status).toBe(404)
       expect(sqlite.prepare('SELECT COUNT(*) AS n FROM share_visits').get().n).toBe(2)
+    } finally { sqlite.close() }
+  })
+
+  it('distinguishes repeated views from unique browsers on each share', async () => {
+    const { sqlite, env } = database()
+    try {
+      const cookie = await admin(env)
+      const entryId = (await (await adminRequest(env, '/api/admin/entries', cookie, 'POST', newCode())).json()).id
+      const createShare = async () => {
+        const response = await adminRequest(env, '/api/admin/shares', cookie, 'POST',
+          { entryId, note: '', expiresInHours: 24 })
+        expect(response.status).toBe(201)
+        return (await response.json()).id
+      }
+      const shareId = await createShare()
+      const secondShareId = await createShare()
+      const endpoint = '/api/share/' + shareId + '/code'
+      const visitorOne = '55555555-5555-4555-8555-555555555555'
+      const visitorTwo = '66666666-6666-4666-8666-666666666666'
+      const makeView = async (visitId, visitorId, path = endpoint) => {
+        const headers = { 'X-Share-Visit': visitId, ...(visitorId ? { 'X-Share-Visitor': visitorId } : {}) }
+        return post(env, path, {}, '', headers)
+      }
+      const first = await makeView(visitOne, visitorOne)
+      expect(first.status).toBe(200)
+      expect(JSON.stringify(await first.json())).not.toMatch(/viewCount|uniqueVisitors|visitor|account|issuer/)
+
+      // A reload is a new view but the same browser stays one unique visitor.
+      expect((await makeView(visitTwo, visitorOne)).status).toBe(200)
+      // Automatic refreshes and retries reuse the same visit ID.
+      expect((await makeView(visitTwo, visitorOne)).status).toBe(200)
+      expect((await makeView('33333333-3333-4333-8333-333333333333', visitorTwo)).status).toBe(200)
+
+      // Missing or invalid visitor headers still count views, but not UV.
+      expect((await makeView('44444444-4444-4444-8444-444444444444', null)).status).toBe(200)
+      expect((await makeView('77777777-7777-4777-8777-777777777777', 'invalid-id')).status).toBe(200)
+      const list = await adminRequest(env, '/api/admin/shares', cookie)
+      const stats = (await list.json()).shares.find((share) => share.id === shareId)
+      expect(stats.viewCount).toBe(5)
+      expect(stats.uniqueVisitors).toBe(2)
+
+      const receipts = sqlite.prepare(
+        'SELECT visitor_hash FROM share_visits WHERE share_id = ? AND visitor_hash IS NOT NULL'
+      ).all(shareId)
+      expect(receipts).toHaveLength(3)
+      expect(new Set(receipts.map((row) => row.visitor_hash)).size).toBe(2)
+      for (const row of receipts) {
+        expect(row.visitor_hash).toMatch(/^[A-Za-z0-9_-]{43}$/)
+        expect(row.visitor_hash).not.toContain(visitorOne)
+      }
+
+      // Sharing the same browser identifier does not correlate hashes across links.
+      expect((await makeView('88888888-8888-4888-8888-888888888888', visitorOne,
+        '/api/share/' + secondShareId + '/code')).status).toBe(200)
+      const listTwo = await adminRequest(env, '/api/admin/shares', cookie)
+      const separate = (await listTwo.json()).shares.find((share) => share.id === secondShareId)
+      expect(separate.viewCount).toBe(1)
+      expect(separate.uniqueVisitors).toBe(1)
+      const firstHash = receipts[0].visitor_hash
+      const otherHash = sqlite.prepare('SELECT visitor_hash FROM share_visits WHERE share_id = ?')
+        .get(secondShareId).visitor_hash
+      expect(otherHash).not.toBe(firstHash)
     } finally { sqlite.close() }
   })
 
@@ -185,17 +280,23 @@ describe('groups and successful shared-code views', () => {
       entryId, note: '', expiresInHours: 24, password: 'very-strong-share-password'
     })).json()
     const endpoint = '/api/share/' + share.id
-    expect((await post(env, endpoint + '/code', {}, '', { 'X-Share-Visit': visitOne })).status).toBe(401)
+    const browserId = '99999999-9999-4999-8999-999999999999'
+    expect((await post(env, endpoint + '/code', {}, '', {
+      'X-Share-Visit': visitOne, 'X-Share-Visitor': browserId
+    })).status).toBe(401)
     expect((await post(env, endpoint + '/unlock', { password: 'wrong' })).status).toBe(401)
     let list = await adminRequest(env, '/api/admin/shares', cookie)
     expect((await list.json()).shares[0].viewCount).toBe(0)
+    // Failed unlocks must never create a unique visitor.
+    expect((await adminRequest(env, '/api/admin/shares', cookie).then(r => r.json())).shares[0].uniqueVisitors).toBe(0)
     const unlocked = await post(env, endpoint + '/unlock', { password: 'very-strong-share-password' })
     expect(unlocked.status).toBe(200)
     const ticket = (await unlocked.json()).unlockToken
     expect((await post(env, endpoint + '/code', {}, '', {
-      'X-Share-Visit': visitOne, 'X-Share-Unlock': ticket
+      'X-Share-Visit': visitOne, 'X-Share-Visitor': browserId, 'X-Share-Unlock': ticket
     })).status).toBe(200)
     list = await adminRequest(env, '/api/admin/shares', cookie)
     expect((await list.json()).shares[0].viewCount).toBe(1)
+    expect((await adminRequest(env, '/api/admin/shares', cookie).then(r => r.json())).shares[0].uniqueVisitors).toBe(1)
   })
 })

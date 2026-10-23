@@ -21,7 +21,7 @@ A self-hosted, browser-based authenticator manager for one administrator, with s
 
 | Private administration | Controlled code sharing | Built for Cloudflare |
 | --- | --- | --- |
-| One administrator password; groups for saved codes; search; direct `otpauth://` and local QR image import. | Multiple links per code; optional passwords; visit counts; selectable expiration; immediate revocation. | Workers + Hono + Web Crypto; encrypted secrets in D1; Sessions API; daily expired/revoked-record cleanup. |
+| One administrator password; groups for saved codes; search; direct `otpauth://` and local QR image import. | Multiple links per code; optional passwords; Views and UV statistics; selectable expiration; immediate revocation. | Workers + Hono + Web Crypto; encrypted secrets in D1; Sessions API; daily expired/revoked-record cleanup. |
 
 - **Supported codes:** SHA-1, SHA-256 and SHA-512; 6 or 8 digits; 15–120-second periods.
 - **Easy to use:** Responsive admin dashboard and public sharing pages, light/dark appearance, accessible copy actions and clear expiry states.
@@ -70,7 +70,7 @@ The public site is separate from `/admin`. Visitors can enter a case-sensitive S
 3. **Add a code** by importing an `otpauth://totp/...` link, selecting a QR image, or supplying the setup key manually. QR decoding happens **locally in the browser**.
 4. Search your entries and select one to view the current code. The Worker generates TOTP values; it encrypts setup secrets with **AES-256-GCM** before storing them in D1.
 5. Select **Share code** to create a recipient link. Choose a lifetime (1 hour, 24 hours, 7 days, 30 days, or until revoked), an optional password, and a private admin note.
-6. Manage active share links from the dashboard, including each link's **Views** count. Revocation prevents new code requests **immediately**. Revoked and expired records are removed during the daily UTC-midnight cleanup.
+6. Manage active share links from the dashboard, including **Views** and approximate **UV** for each link. Revocation prevents new code requests **immediately**. Revoked and expired records are removed during the daily UTC-midnight cleanup.
 
 ### For a recipient
 
@@ -122,7 +122,7 @@ For a working instance, create or select your D1 database, set `D1_DATABASE_NAME
 - Supports SHA-1, SHA-256, and SHA-512; 6- or 8-digit codes; periods of 15 to 120 seconds.
 - Import an `otpauth://totp/...` link or upload a QR code image. QR recognition runs in the browser; images are not uploaded.
 - TOTP secrets are encrypted with AES-256-GCM by the Worker before being written to D1.
-- Create multiple share links per TOTP entry, with separate expiration dates, revocation controls, and per-link successful-view counters.
+- Create multiple share links per TOTP entry, with separate expiration dates, revocation controls, and per-link **Views** and approximate **UV** (unique browsers).
 - Revoked and expired shares stop working immediately, but their D1 records are removed together by a once-daily UTC midnight Cron Trigger.
 - Share URLs use a 22-character case-sensitive Base62 ID with approximately 131 bits of randomness, without a separate URL token.
 - **Public links:** anyone holding the URL can view the shared code.
@@ -164,7 +164,7 @@ Cloudflare documentation: https://developers.cloudflare.com/d1/best-practices/re
 
 ## Appearance and everyday language
 
-The frontend uses the official four-bar shield-and-nest mark, redrawn as a self-contained SVG from the selected logo artwork. The full wordmark has been outlined into vector paths and needs no downloaded fonts; interface text uses **Inter**, loaded through Google Fonts (OFL-licensed), with platform font fallbacks. The layout includes a responsive admin sidebar, a verification-code workspace, and a separate public sharing experience. Brand updates do not change TOTP generation, share authorization, or encryption.
+The frontend uses the official four-bar shield-and-nest mark, redrawn as a self-contained SVG from the selected logo artwork. The full wordmark has been outlined into vector paths and needs no downloaded fonts. Interface text uses **Inter**, a proportional (not monospaced) font loaded through Google Fonts (OFL-licensed), with system font fallbacks. Verification-code digits use the tabular numeral feature so 0–9 occupy equal widths. The layout includes a responsive admin sidebar, a verification-code workspace, and a separate public sharing experience. Brand updates do not change TOTP generation, share authorization, or encryption.
 
 | Brand asset | Purpose |
 | --- | --- |
@@ -295,13 +295,22 @@ npm run dev
 
 Wrangler serves the built application at `http://127.0.0.1:8787` by default. Re-run `npm run dev` after changing the frontend, or run `npm run dev:ui` for the Vite frontend server against a separately running Worker. The development secrets file is ignored by Git.
 
-## Groups and view counts
+## Groups, views and unique visitors
 
-Migration `0004_groups_and_views.sql` adds groups and view receipts **without changing or re-encrypting existing codes**. All existing entries initially appear under **Ungrouped**. A deleted group moves its codes back to Ungrouped; it does not delete codes, secrets, or related share links.
+Migration `0004_groups_and_views.sql` adds groups and successful-view receipts **without changing or re-encrypting existing codes**. All existing entries initially appear under **Ungrouped**. A deleted group moves its codes back to Ungrouped; it does not delete codes, secrets, or related share links.
 
-The administrator dashboard displays **Views** for each active share link. A view is counted when a recipient **successfully receives a current code** using that link. Password prompts, failed unlocks and unavailable links do not count. The browser sends a new random, short-lived-per-page-load visit ID; retries and automatic code changes reuse it, and the database ignores repeated IDs. Reloading or reopening the page is a new view, even for the same person, so **Views are not unique visitors**. Counts start at zero after the migration and are not reconstructed from past activity. Only the active share's random ID, random visit ID and timestamp are stored—no IP addresses, user agents or visitor identities. Receipts are deleted along with their share during daily cleanup. The statistic is best-effort and may undercount if a database write fails; code delivery takes priority.
+Migration `0005_share_unique_visitors.sql` adds an optional visitor hash to existing visit receipts. Existing Views are preserved. Previous visits have no visitor identity, so **UV starts from zero when this migration is deployed**; it cannot be reconstructed retroactively.
 
-D1 is used for both group relationships and exact per-link view deduplication. Cloudflare KV is not required; its eventual consistency would complicate immediate deletion and deduplication. Access and visit totals remain administrator-only.
+The administrator dashboard displays two numbers for each active share link:
+
+- **Views:** Successful current-code views, counted once per page load. Network retries and automatic code updates do not add views. Reloading or reopening the page adds a view, even for the same person.
+- **UV (unique visitors):** An estimate of **distinct browsers** that have successfully viewed a current code using that link. The browser generates a random ID per share and keeps it in local storage across reloads. A cleared-storage browser, private-browsing session or second device can count as another UV, and two people sharing a browser can count as one. It is **not a count of identifiable people**.
+
+No view or UV is added for password prompts, incorrect passwords, expired/revoked links or failed code requests. UV counting is scoped to each share link. The browser stores an opaque local-storage key derived from a SHA-256 hash of the share path, never the share ID itself. The server stores only a hash of the random browser ID **scoped to the share**, together with the already-stored random per-page visit ID and view timestamp. No IP addresses, user agents, device fingerprints or account names are stored in the view receipts. Two different shares cannot be linked together using the stored hashes. The public API does not return statistics.
+
+A malformed or missing browser ID does not invalidate an otherwise valid view; that view contributes to Views but not UV. When browser storage is blocked, a temporary random ID is used and the count may increase across reloads. Statistics are best-effort: a database write failure never prevents an authorized code from being returned, so numbers may undercount. Receipts are deleted with the share during normal cleanup.
+
+D1 stores both metrics and supplies per-link deduplication. No Cloudflare KV binding is needed. Only authenticated administrators can read statistics.
 
 The Inter typeface is fetched from a free Google Fonts CDN. Font requests are made by the visitor's browser, not by the Worker, and may reveal the visitor's IP address to the font provider as with other external resources. If the CDN is unavailable, the system font stack remains usable.
 
@@ -373,7 +382,7 @@ Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing en
 npm run check
 ```
 
-The CI pipeline validates code: TypeScript type checking, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, midnight share cleanup and immediate access revocation, public route isolation, responsive branding styles, indexing headers, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+The CI pipeline validates code: TypeScript type checking, UV migration, per-share visitor deduplication and privacy tests, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, midnight share cleanup and immediate access revocation, public route isolation, responsive branding styles, indexing headers, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
 
 ## API overview
 

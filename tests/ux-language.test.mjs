@@ -28,6 +28,12 @@ describe('task-focused interface language and flows', () => {
     expect(app).toContain('Try again')
   })
 
+  it('labels visits and estimated unique browsers distinctly in the share list', () => {
+    expect(app).toContain('Views: {share.viewCount}')
+    expect(app).toContain('UV</abbr>: {share.uniqueVisitors}')
+    expect(app).toContain('Unique visitors (estimated by browser)')
+  })
+
   it('prioritizes the usable code and the primary task on small screens', () => {
     expect(code).toContain('This code is about to change.')
     expect(code).not.toContain('display(next.code)')
