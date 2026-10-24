@@ -279,6 +279,9 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
 .progress-fill.amber { background: linear-gradient(90deg,#f8c467,#ffa442); }
 .code-foot { display: flex; justify-content: space-between; gap: 14px; margin-top: 12px;
   color: #c4d9f9; font-size: .73rem; }
+.code-server-time { display: flex; justify-content: space-between; gap: 14px; margin-top: 9px;
+  color: #d8e8ff; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.code-server-time time { font-weight: 750; letter-spacing: .035em; }
 .code-expiry-note { margin-top: 14px; color: #ffe0ab; font-size: .78rem; }
 .next-code-preview { display: flex; align-items: center; justify-content: space-between; gap: 16px;
   flex-wrap: wrap; margin-top: 16px; padding: 15px 17px; border: 1px solid rgba(255,211,153,.42);
@@ -406,7 +409,7 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
 .shared-page .code-panel { color: var(--text); background: var(--surface);
   border-color: var(--stroke); box-shadow: var(--shadow); }
 .shared-page .code-panel::before { border-color: rgba(3,175,236,.06); }
-.shared-page .code-kicker, .shared-page .code-label, .shared-page .code-foot { color: var(--muted); }
+.shared-page .code-kicker, .shared-page .code-label, .shared-page .code-foot, .shared-page .code-server-time { color: var(--muted); }
 .shared-page .code-digits { font-size: clamp(2rem,5vw,3.15rem); color: var(--text); }
 .shared-page .code-copy { color: white; background: linear-gradient(103deg,#075def,#078efa 65%,#04bcd6); }
 .shared-page .code-copy:hover:not(:disabled) { background: linear-gradient(103deg,#0a6dff,#05bdec); }

@@ -244,6 +244,12 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
       <span role="status" aria-live="polite">{copied ? 'Copied to clipboard' : 'Updates automatically'}</span>
       <span>{current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : error ? "Couldn't load the code" : 'Loading your code...'}</span>
     </div>
+    <div className="code-server-time" aria-label="Server time">
+      <span>Server time</span>
+      <time dateTime={current ? new Date(now).toISOString() : undefined}>
+        {current ? new Date(now).toLocaleString() : 'Synchronizing...'}
+      </time>
+    </div>
     {previewCode ? <div className="next-code-preview" aria-label="Upcoming code">
       <div className="next-code-details">
         <span className="next-code-label">Next code</span>
