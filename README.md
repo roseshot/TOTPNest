@@ -413,9 +413,26 @@ TOTPNest's application source code is licensed under the **GNU Affero General Pu
 
 Because TOTPNest is a network-accessible application, AGPL-3.0's network-use provision (Section 13) is relevant: if you run a modified version for users to interact with remotely over a network, you must offer those users the Corresponding Source of that modified version as required by the license.
 
-### Third-party assets and dependencies
+### Third-party packages and licenses
+
+The following table lists the packages declared directly in `package.json`. License names are the packages' published license identifiers; transitive dependencies are not included in this direct-dependency inventory.
+
+| Package | License |
+| --- | --- |
+| `hono` | MIT License |
+| `jsqr` | Apache License 2.0 |
+| `react` | MIT License |
+| `react-dom` | MIT License |
+| `@cloudflare/workers-types` | MIT License |
+| `@types/react` | MIT License |
+| `@types/react-dom` | MIT License |
+| `@vitejs/plugin-react` | MIT License |
+| `typescript` | Apache License 2.0 |
+| `vite` | MIT License |
+| `vitest` | MIT License |
+| `wrangler` | Apache License 2.0 |
 
 - **Inter font files** in `public/fonts/` are licensed separately under the **SIL Open Font License 1.1 (OFL-1.1)**. The font copyright and full license notice are included in [`public/fonts/OFL.txt`](public/fonts/OFL.txt).
-- **Third-party packages** retain their own respective licenses. Review the license information distributed with each package before redistributing a build or its dependencies.
+- The application source code remains under **GNU Affero General Public License v3.0 (AGPL-3.0)**. Third-party package and font licenses apply independently; they are not relicensed under the application's AGPL-3.0 license.
 
-The AGPL-3.0 license for the application does not replace the separate license terms that apply to these third-party components.
+For the complete terms, consult each package's own license file or package metadata in its published distribution. This table covers direct dependencies only; packages pulled in transitively retain their respective licenses and should be reviewed separately when preparing a redistribution.
