@@ -9,6 +9,8 @@ A self-hosted, browser-based authenticator manager for one administrator, with s
 [![CI](https://github.com/roseshot/TOTPNest/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/roseshot/TOTPNest/actions/workflows/ci.yml)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange)](https://developers.cloudflare.com/workers/)
 [![React](https://img.shields.io/badge/React-19-087EA4)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7.0.2-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL--3.0-blue?logo=gnu&logoColor=white)](LICENSE)
 
 [Explore the interface](#interface-preview) · [Get started](#quick-start) · [Deployment](#deployment) · [Security](#security-model-and-limitations)
 
