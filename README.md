@@ -95,7 +95,7 @@ flowchart LR
 
 ## Quick start
 
-**Requirements:** Node.js 22.12+, a Cloudflare account with Workers and D1, and Wrangler access.
+**Requirements:** Node.js 26.12.1+, a Cloudflare account with Workers and D1, and Wrangler access.
 
 ```sh
 git clone https://github.com/roseshot/TOTPNest.git
@@ -193,7 +193,7 @@ Reference: https://developers.google.com/search/docs/crawling-indexing/block-ind
 
 ## Requirements
 
-- Node.js 22.12 or later
+- Node.js 26.12.1 or later
 - A Cloudflare account with Workers and D1 enabled (the Free plan is supported)
 - A domain managed through Cloudflare DNS for a Custom Domain
 - Access to a terminal with Wrangler

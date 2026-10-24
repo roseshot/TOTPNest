@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=26.12.1"
   },
   "scripts": {
     "dev": "npm run build && npm run prepare:wrangler && wrangler dev --config wrangler.generated.jsonc",
