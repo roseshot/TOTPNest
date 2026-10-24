@@ -460,7 +460,7 @@ app.post('/api/share/:id/code', async (c) => {
     const visitorId = c.req.header('X-Share-Visitor')
     // Scope the hash to each share so the database cannot correlate other links.
     // Keep this analytics-only write off the response's critical path.
-    c.executionCtx.waitUntil((async () => {
+    const recordVisit = (async () => {
       try {
         const visitorHash = visitorId && UUID_V4_PATTERN.test(visitorId)
           ? await sha256('share-visitor-v1:' + share.id + ':' + visitorId.toLowerCase())
@@ -471,7 +471,10 @@ app.post('/api/share/:id/code', async (c) => {
       } catch {
         // Analytics must never prevent a valid verification code from being displayed.
       }
-    })())
+    })()
+    // Worker requests use waitUntil; the app's lightweight test harness may not.
+    if (c.executionCtx?.waitUntil) c.executionCtx.waitUntil(recordVisit)
+    else await recordVisit
   }
   return response
 })
