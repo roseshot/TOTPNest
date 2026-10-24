@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const load = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), 'utf8')
@@ -15,16 +15,24 @@ describe('site-wide noindex and branded UI', () => {
     expect(worker).toContain("'X-Robots-Tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex'")
   })
 
-  it('loads the free Inter font through the CDN without weakening script security', () => {
+  it('loads self-hosted Inter fonts without allowing external font origins or weakening script security', () => {
     const html = load('../index.html')
     const headers = load('../public/_headers')
     const css = load('../src/client/styles.css')
-    expect(html).toContain('fonts.googleapis.com/css2?family=Inter')
-    expect(html).toContain('display=swap')
-    expect(html).toContain('fonts.gstatic.com')
+    const weights = [400, 500, 600, 700, 800, 900]
+
+    expect(html).toContain('href="/fonts/inter-latin-400-normal.woff2"')
+    expect(html).toContain('as="font" type="font/woff2" crossorigin')
     expect(css).toContain('font-family: "Inter", ui-sans-serif')
-    expect(headers).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com")
-    expect(headers).toContain("font-src 'self' https://fonts.gstatic.com")
+    for (const weight of weights) {
+      const fontPath = `../public/fonts/inter-latin-${weight}-normal.woff2`
+      expect(css).toContain(`/fonts/inter-latin-${weight}-normal.woff2`)
+      expect(existsSync(new URL(fontPath, import.meta.url))).toBe(true)
+    }
+    expect(html).not.toMatch(/fonts\\.(?:googleapis|gstatic)\\.com/)
+    expect(headers).toContain("style-src 'self' 'unsafe-inline'")
+    expect(headers).toContain("font-src 'self'")
+    expect(headers).not.toMatch(/fonts\\.(?:googleapis|gstatic)\\.com/)
     expect(headers).toContain("script-src 'self'")
   })
 
