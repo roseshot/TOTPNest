@@ -202,9 +202,6 @@ function SharePage({ id }: { id: string }) {
         {error && <p className="message error" role="alert">{error}</p>}
       </form> : <CodePanel endpoint={'/api/share/' + id} unlock={unlock || undefined}
         onAuthError={onFeedError} />}
-      <p className="shared-privacy-note"><span aria-hidden="true">✦</span>
-        Only the code is shared here. The sender's account details stay hidden.
-      </p>
     </div>
   </PublicFrame>
 }
