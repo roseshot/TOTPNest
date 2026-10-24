@@ -409,4 +409,13 @@ Clients cannot select arbitrary timestamps to retrieve unlimited future codes.
 
 ## License
 
-The repository retains its original `LICENSE` file.
+TOTPNest's application source code is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. The complete license text is in [`LICENSE`](LICENSE).
+
+Because TOTPNest is a network-accessible application, AGPL-3.0's network-use provision (Section 13) is relevant: if you run a modified version for users to interact with remotely over a network, you must offer those users the Corresponding Source of that modified version as required by the license.
+
+### Third-party assets and dependencies
+
+- **Inter font files** in `public/fonts/` are licensed separately under the **SIL Open Font License 1.1 (OFL-1.1)**. The font copyright and full license notice are included in [`public/fonts/OFL.txt`](public/fonts/OFL.txt).
+- **Third-party packages** retain their own respective licenses. Review the license information distributed with each package before redistributing a build or its dependencies.
+
+The AGPL-3.0 license for the application does not replace the separate license terms that apply to these third-party components.
