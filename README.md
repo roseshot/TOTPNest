@@ -331,6 +331,12 @@ The next code preview is informational and must not be used before its countdown
 
 ## Security model and limitations
 
+[![AES-256-GCM](https://img.shields.io/badge/Encryption-AES--256--GCM-2E7D32?logo=letsencrypt&logoColor=white)](#security-model-and-limitations)
+[![Web Crypto API](https://img.shields.io/badge/Crypto-Web_Crypto_API-2E7D32)](#security-model-and-limitations)
+[![Secure Sessions](https://img.shields.io/badge/Sessions-HttpOnly_%7C_Secure_%7C_SameSite-2E7D32)](#security-model-and-limitations)
+[![Rate Limited](https://img.shields.io/badge/API-Rate_Limited-2E7D32)](#security-model-and-limitations)
+
+
 - The Worker **can decrypt TOTP secrets**, so this is **not an end-to-end encrypted or zero-knowledge vault**. Compromise of the Worker, its deployment access, or its encryption secret may expose TOTP secrets.
 - `ADMIN_PASSWORD` is held as a Worker Secret, not in D1. Administrator sessions use random 256-bit tokens; D1 contains only session hashes. Session cookies use `HttpOnly; Secure; SameSite=Strict` on HTTPS.
 - Updating `ADMIN_PASSWORD` invalidates prior admin sessions because the stored session verifier is bound to the configured password.
