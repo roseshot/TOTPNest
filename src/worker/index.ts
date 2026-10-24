@@ -473,8 +473,8 @@ app.post('/api/share/:id/code', async (c) => {
       }
     })()
     // Worker requests use waitUntil; the app's lightweight test harness may not.
-    if (c.executionCtx?.waitUntil) c.executionCtx.waitUntil(recordVisit)
-    else await recordVisit
+    try { c.executionCtx.waitUntil(recordVisit) }
+    catch { await recordVisit }
   }
   return response
 })
