@@ -20,7 +20,8 @@ function canonicalBase32(value: string): string {
 
 export function decodeBase32(value: string): Uint8Array<ArrayBuffer> {
   const clean = canonicalBase32(value)
-  const result: number[] = []
+  const result = new Uint8Array(Math.floor(clean.length * 5 / 8))
+  let output = 0
   let bits = 0
   let buffer = 0
   for (const char of clean) {
@@ -28,13 +29,13 @@ export function decodeBase32(value: string): Uint8Array<ArrayBuffer> {
     bits += 5
     if (bits >= 8) {
       bits -= 8
-      result.push((buffer >> bits) & 0xff)
+      result[output++] = (buffer >> bits) & 0xff
       buffer &= (1 << bits) - 1
     }
   }
   if (bits !== 0 && buffer !== 0) throw new Error('Invalid Base32 padding bits')
-  if (result.length < 10 || result.length > 128) throw new Error('Secret must be between 10 and 128 bytes')
-  return new Uint8Array(result)
+  if (output < 10 || output > 128) throw new Error('Secret must be between 10 and 128 bytes')
+  return result
 }
 
 export function normalizeSecret(value: string): string {

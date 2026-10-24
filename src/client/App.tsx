@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react'
-import jsQR from 'jsqr'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { ApiFailure, copyText, request } from './api'
 import { CodePanel } from './CodePanel'
 import { Brand } from './Brand'
@@ -42,6 +41,7 @@ async function importQr(file: File): Promise<EntryDraft> {
     if (!context) throw new Error('Could not read the QR code image')
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height)
+    const { default: jsQR } = await import('jsqr')
     const result = jsQR(pixels.data, pixels.width, pixels.height)
     if (!result) throw new Error('No QR code detected. Try a clearer image')
     return parseOtpUri(result.data)
@@ -519,25 +519,39 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
   const [manualLink, setManualLink] = useState('')
   const [loading, setLoading] = useState(true)
 
-  const reload = useCallback(async () => {
+  const reloadEntries = useCallback(async () => {
     try {
-      const [e, s, g] = await Promise.all([
-        request<{ entries: Entry[] }>('/api/admin/entries'),
-        request<{ shares: Share[] }>('/api/admin/shares'),
-        request<{ groups: Group[] }>('/api/admin/groups')
-      ])
-      setEntries(e.entries); setShares(s.shares); setGroups(g.groups)
-      setSelected((old) => e.entries.some((item) => item.id === old) ? old : e.entries[0]?.id || null)
-      setError('')
+      const result = await request<{ entries: Entry[] }>('/api/admin/entries')
+      setEntries(result.entries)
+      setSelected((old) => result.entries.some((item) => item.id === old)
+        ? old : result.entries[0]?.id || null)
     } catch (cause) { setError(message(cause)) }
-    finally { setLoading(false) }
   }, [])
+  const reloadShares = useCallback(async () => {
+    try {
+      const result = await request<{ shares: Share[] }>('/api/admin/shares')
+      setShares(result.shares)
+    } catch (cause) { setError(message(cause)) }
+  }, [])
+  const reloadGroups = useCallback(async () => {
+    try {
+      const result = await request<{ groups: Group[] }>('/api/admin/groups')
+      setGroups(result.groups)
+    } catch (cause) { setError(message(cause)) }
+  }, [])
+  const reload = useCallback(async () => {
+    setError('')
+    await Promise.all([reloadEntries(), reloadShares(), reloadGroups()])
+    setLoading(false)
+  }, [reloadEntries, reloadShares, reloadGroups])
   useEffect(() => { void reload() }, [reload])
-  const filtered = visibleEntries(entriesInGroup(entries, groupFilter), search)
+  const groupEntries = useMemo(() => entriesInGroup(entries, groupFilter), [entries, groupFilter])
+  const filtered = useMemo(() => visibleEntries(groupEntries, search), [groupEntries, search])
+  const groupsById = useMemo(() => new Map(groups.map((group) => [group.id, group.name])), [groups])
   // The details must always correspond to an item visible in the filtered list.
   const entry = activeEntry(filtered, selected)
   const selectedGroup = groupFilter === 'all' ? 'All codes' :
-    groupFilter === 'ungrouped' ? 'Ungrouped' : groups.find((group) => group.id === groupFilter)?.name || 'Group'
+    groupFilter === 'ungrouped' ? 'Ungrouped' : groupsById.get(groupFilter) || 'Group'
   const changeGroupFilter = (filter: GroupFilter) => {
     setGroupFilter(filter)
     setEditor(null); setSharing(false); setChoosingShare(false)
@@ -552,8 +566,8 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
       // Keep the moved code visible even when it leaves the current group filter.
       setGroupFilter('all')
       setSelected(item.id)
-      await reload()
-      const groupName = groups.find((group) => group.id === groupId)?.name || 'Ungrouped'
+      await reloadEntries()
+      const groupName = groupId ? groupsById.get(groupId) || 'Group' : 'Ungrouped'
       setNotice('Moved to ' + groupName)
     } catch (cause) { setError(message(cause)) }
     finally { setMovingGroup(false) }
@@ -577,14 +591,14 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
     try {
       await request('/api/admin/entries/' + item.id, { method: 'DELETE' })
       setEditor(null); setSharing(false)
-      await reload()
+      await Promise.all([reloadEntries(), reloadShares()])
     } catch (cause) { setError(message(cause)) }
   }
   const revoke = async (id: string) => {
     if (!window.confirm("Stop sharing this code? People won't be able to get new codes from this link. A code already copied may still work until it changes.")) return
     try {
       await request('/api/admin/shares/' + id, { method: 'DELETE' })
-      await reload()
+      await reloadShares()
     } catch (cause) { setError(message(cause)) }
   }
   const copyLink = async (id: string) => {
@@ -606,10 +620,12 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
     onLogout()
   }
 
-  const activeShares = shares.filter((share) =>
-    share.revokedAt === null && (share.expiresAt === null || share.expiresAt > Date.now()))
-  const expiringShares = activeShares.filter((share) =>
-    share.expiresAt !== null && share.expiresAt - Date.now() <= 3 * 24 * 60 * 60 * 1000)
+  const activeShares = useMemo(() => shares.filter((share) =>
+    share.revokedAt === null && (share.expiresAt === null || share.expiresAt > Date.now())), [shares])
+  const expiringShares = useMemo(() => activeShares.filter((share) =>
+    share.expiresAt !== null && share.expiresAt - Date.now() <= 3 * 24 * 60 * 60 * 1000), [activeShares])
+  const protectedShareCount = useMemo(() =>
+    activeShares.reduce((count, share) => count + Number(share.protected), 0), [activeShares])
 
   const startNew = () => {
     setSearch('')
@@ -678,7 +694,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
             <span className="metric-label">Active links</span><strong>{activeShares.length}</strong><small>Links people can open</small></div>
           <div className="metric-card"><span className="metric-icon" aria-hidden="true">⌑</span>
             <span className="metric-label">Links with passwords</span>
-            <strong>{activeShares.filter((share) => share.protected).length}</strong><small>Password needed to open</small></div>
+            <strong>{protectedShareCount}</strong><small>Password needed to open</small></div>
           <div className="metric-card"><span className="metric-icon" aria-hidden="true">◷</span>
             <span className="metric-label">Expiring soon</span><strong>{expiringShares.length}</strong><small>Within three days</small></div>
         </section>
@@ -722,7 +738,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
           <aside className="card entry-list" aria-label="Saved code list">
             <div className="list-heading">
               <strong>{selectedGroup}</strong>
-              <span>{entriesInGroup(entries, groupFilter).length} codes</span>
+              <span>{groupEntries.length} codes</span>
             </div>
             <div className="search-field">
               <input className="search" type="search" aria-label="Search saved codes"
@@ -733,7 +749,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
                 aria-label="Clear search">Clear</button>}
             </div>
             {!loading && entries.length > 0 && <p className="muted small search-count" role="status">
-              {filtered.length} of {entriesInGroup(entries, groupFilter).length} codes shown
+              {filtered.length} of {groupEntries.length} codes shown
             </p>}
             <div className="entry-scroll">
               {filtered.length ? filtered.map((item) => <button key={item.id}
@@ -751,7 +767,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
                 <span className="entry-label"><strong>{item.issuer || 'Unnamed'}</strong>
                   <small>{item.account || 'No account specified'}</small>
                   {groupFilter === 'all' && item.groupId && <small className="entry-group-tag">
-                    {groups.find((group) => group.id === item.groupId)?.name}
+                    {groupsById.get(item.groupId)}
                   </small>}
                 </span>
                 <span className="entry-arrow" aria-hidden="true">›</span>
@@ -772,10 +788,10 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
                 setGroupFilter('all')
                 if (savedId) setSelected(savedId)
                 setNotice('Code saved')
-                void reload()
+                void reloadEntries()
               }}/>
             : sharing && entry ? <ShareCreator key={entry.id} entry={entry}
-              onCreated={() => void reload()} onCancel={() => setSharing(false)} />
+              onCreated={() => void reloadShares()} onCancel={() => setSharing(false)} />
             : choosingShare ? <div className="card empty-state share-choice">
               <span className="empty-symbol" aria-hidden="true">↗</span>
               <h2>Which code would you like to share?</h2>

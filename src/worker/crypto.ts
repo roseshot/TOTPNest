@@ -32,20 +32,50 @@ export function constantTimeEqual(a: string, b: string): boolean {
   return difference === 0
 }
 
+const aesKeyCache = new Map<string, Promise<CryptoKey>>()
+const signingKeyCache = new Map<string, Promise<CryptoKey>>()
+const MAX_CACHED_KEYS = 8
+
+function cachedKey(
+  cache: Map<string, Promise<CryptoKey>>, cacheKey: string,
+  create: () => Promise<CryptoKey>
+): Promise<CryptoKey> {
+  const existing = cache.get(cacheKey)
+  if (existing) {
+    cache.delete(cacheKey)
+    cache.set(cacheKey, existing)
+    return existing
+  }
+  const pending = create()
+  cache.set(cacheKey, pending)
+  if (cache.size > MAX_CACHED_KEYS) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
+  void pending.catch(() => {
+    if (cache.get(cacheKey) === pending) cache.delete(cacheKey)
+  })
+  return pending
+}
+
 async function aesKey(encodedKey: string): Promise<CryptoKey> {
-  const raw = unbase64url(encodedKey)
-  if (raw.length !== 32) throw new Error('DATA_ENCRYPTION_KEY must be a 32-byte base64url value')
-  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt'])
+  return cachedKey(aesKeyCache, encodedKey, async () => {
+    const raw = unbase64url(encodedKey)
+    if (raw.length !== 32) throw new Error('DATA_ENCRYPTION_KEY must be a 32-byte base64url value')
+    return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt'])
+  })
 }
 
 async function signKey(encodedKey: string, purpose: string): Promise<CryptoKey> {
-  const raw = unbase64url(encodedKey)
-  if (raw.length !== 32) throw new Error('Invalid encryption key')
-  const hkdfKey = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey'])
-  return crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: utf8('totpnest-v1'), info: utf8(purpose) },
-    hkdfKey, { name: 'HMAC', hash: 'SHA-256', length: 256 }, false, ['sign', 'verify']
-  )
+  return cachedKey(signingKeyCache, purpose + ':' + encodedKey, async () => {
+    const raw = unbase64url(encodedKey)
+    if (raw.length !== 32) throw new Error('Invalid encryption key')
+    const hkdfKey = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey'])
+    return crypto.subtle.deriveKey(
+      { name: 'HKDF', hash: 'SHA-256', salt: utf8('totpnest-v1'), info: utf8(purpose) },
+      hkdfKey, { name: 'HMAC', hash: 'SHA-256', length: 256 }, false, ['sign', 'verify']
+    )
+  })
 }
 
 export async function encrypt(value: string, key: string, context: string) {

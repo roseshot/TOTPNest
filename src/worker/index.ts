@@ -354,15 +354,26 @@ app.post('/api/admin/entries/:id/next', async (c) => {
 })
 
 app.get('/api/admin/shares', async (c) => {
-  const rows = await c.var.db.prepare(`SELECT shares.id, shares.entry_id, shares.note,
-    shares.expires_at, shares.revoked_at, shares.created_at,
-    (shares.password_hash IS NOT NULL) AS protected,
-    (SELECT COUNT(*) FROM share_visits WHERE share_id = shares.id) AS view_count,
-    (SELECT COUNT(DISTINCT visitor_hash) FROM share_visits
-      WHERE share_id = shares.id) AS unique_visitors,
-    entries.issuer, entries.account
-    FROM shares JOIN entries ON entries.id = shares.entry_id
-    WHERE shares.revoked_at IS NULL AND (shares.expires_at IS NULL OR shares.expires_at > ?)
+  const rows = await c.var.db.prepare(`WITH active_shares AS (
+      SELECT id, entry_id, note, expires_at, revoked_at, created_at,
+        (password_hash IS NOT NULL) AS protected
+      FROM shares
+      WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
+    ), visit_stats AS (
+      SELECT visits.share_id, COUNT(*) AS view_count,
+        COUNT(DISTINCT visits.visitor_hash) AS unique_visitors
+      FROM share_visits AS visits
+      INNER JOIN active_shares AS active ON active.id = visits.share_id
+      GROUP BY visits.share_id
+    )
+    SELECT shares.id, shares.entry_id, shares.note, shares.expires_at,
+      shares.revoked_at, shares.created_at, shares.protected,
+      COALESCE(visit_stats.view_count, 0) AS view_count,
+      COALESCE(visit_stats.unique_visitors, 0) AS unique_visitors,
+      entries.issuer, entries.account
+    FROM active_shares AS shares
+    JOIN entries ON entries.id = shares.entry_id
+    LEFT JOIN visit_stats ON visit_stats.share_id = shares.id
     ORDER BY shares.created_at DESC`).bind(Date.now()).all()
   return c.json({ shares: rows.results.map((row) => ({
     id: row.id, entryId: row.entry_id, note: row.note, expiresAt: row.expires_at,
@@ -446,18 +457,21 @@ app.post('/api/share/:id/code', async (c) => {
   // Only successful authorized code views are counted. Never store IPs or user agents.
   const visitId = c.req.header('X-Share-Visit')
   if (visitId && UUID_V4_PATTERN.test(visitId)) {
-    try {
-      const visitorId = c.req.header('X-Share-Visitor')
-      // Scope the hash to each share so the database cannot correlate other links.
-      const visitorHash = visitorId && UUID_V4_PATTERN.test(visitorId)
-        ? await sha256('share-visitor-v1:' + share.id + ':' + visitorId.toLowerCase())
-        : null
-      await c.var.db.prepare(
-        'INSERT OR IGNORE INTO share_visits (share_id, visit_id, visitor_hash, viewed_at) VALUES (?, ?, ?, ?)'
-      ).bind(share.id, visitId.toLowerCase(), visitorHash, Date.now()).run()
-    } catch {
-      // Analytics must never prevent a valid verification code from being displayed.
-    }
+    const visitorId = c.req.header('X-Share-Visitor')
+    // Scope the hash to each share so the database cannot correlate other links.
+    // Keep this analytics-only write off the response's critical path.
+    c.executionCtx.waitUntil((async () => {
+      try {
+        const visitorHash = visitorId && UUID_V4_PATTERN.test(visitorId)
+          ? await sha256('share-visitor-v1:' + share.id + ':' + visitorId.toLowerCase())
+          : null
+        await c.var.db.prepare(
+          'INSERT OR IGNORE INTO share_visits (share_id, visit_id, visitor_hash, viewed_at) VALUES (?, ?, ?, ?)'
+        ).bind(share.id, visitId.toLowerCase(), visitorHash, Date.now()).run()
+      } catch {
+        // Analytics must never prevent a valid verification code from being displayed.
+      }
+    })())
   }
   return response
 })

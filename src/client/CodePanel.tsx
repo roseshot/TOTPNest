@@ -54,11 +54,17 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const retryAt = useRef(0)
   const active = useRef(true)
   const authError = useRef(onAuthError)
+  const copyTimeout = useRef<number | null>(null)
   useEffect(() => { authError.current = onAuthError }, [onAuthError])
+  useEffect(() => () => {
+    if (copyTimeout.current !== null) window.clearTimeout(copyTimeout.current)
+  }, [])
 
   const applyCurrent = useCallback((value: CodeWindow) => {
     if (!active.current) return
     setCurrent({ ...value, receivedAt: performance.now() })
+    if (copyTimeout.current !== null) window.clearTimeout(copyTimeout.current)
+    copyTimeout.current = null
     setCopied(false)
     setManualCopy(false)
     setNext(null)
@@ -165,13 +171,6 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     }
   }, [fetchCurrent])
 
-  useEffect(() => {
-    const interval = window.setInterval(() => setTick(performance.now()), 250)
-    const visibility = () => { if (document.visibilityState === 'visible') setTick(performance.now()) }
-    document.addEventListener('visibilitychange', visibility)
-    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', visibility) }
-  }, [])
-
   const now = current ? current.serverNow + (tick - current.receivedAt) : 0
   const remaining = current ? Math.max(0, current.expiresAt - now) : 0
   const lifetime = current ? current.expiresAt - current.validFrom : 30_000
@@ -179,6 +178,24 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
   const expiringSoon = current !== null && remaining > 0 && remaining <= NEXT_PREVIEW_WINDOW_MS
   const previewCode = upcomingCodeText(current, next, now)
   const expired = current !== null && now >= current.expiresAt
+
+  useEffect(() => {
+    let interval: number | undefined
+    const syncTimer = () => {
+      if (interval !== undefined) window.clearInterval(interval)
+      setTick(performance.now())
+      if (document.visibilityState === 'visible') {
+        interval = window.setInterval(() => setTick(performance.now()),
+          expiringSoon ? 250 : 1_000)
+      }
+    }
+    syncTimer()
+    document.addEventListener('visibilitychange', syncTimer)
+    return () => {
+      if (interval !== undefined) window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', syncTimer)
+    }
+  }, [expiringSoon])
 
   useEffect(() => {
     if (!current) {
@@ -210,7 +227,11 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     if (await copyText(current.code)) {
       setManualCopy(false)
       setCopied(true)
-      window.setTimeout(() => setCopied(false), 1400)
+      if (copyTimeout.current !== null) window.clearTimeout(copyTimeout.current)
+      copyTimeout.current = window.setTimeout(() => {
+        copyTimeout.current = null
+        setCopied(false)
+      }, 1400)
     } else {
       setCopied(false)
       setManualCopy(true)
