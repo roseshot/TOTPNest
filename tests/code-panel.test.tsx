@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createElement } from 'react'
-import { CodePanel, countdownAnimationDuration, currentCodeText, upcomingCodeText } from '../src/client/CodePanel'
+import { CodePanel, countdownAnimationDelay, countdownAnimationDuration, currentCodeText, upcomingCodeText } from '../src/client/CodePanel'
 
 describe('code display UX', () => {
-  it('anchors a smooth progress animation to the server-reported remaining lifetime', () => {
-    expect(countdownAnimationDuration({ serverNow: 10_000, expiresAt: 30_000 })).toBe(20_000)
-    expect(countdownAnimationDuration({ serverNow: 30_000, expiresAt: 30_000 })).toBe(0)
+  it('keeps progress animation duration fixed to the complete code-refresh period', () => {
+    expect(countdownAnimationDuration({ validFrom: 0, expiresAt: 30_000 })).toBe(30_000)
+    expect(countdownAnimationDuration({ validFrom: 10_000, expiresAt: 40_000 })).toBe(30_000)
+    expect(countdownAnimationDuration({ validFrom: 10_000, expiresAt: 10_000 })).toBe(0)
     expect(countdownAnimationDuration(null)).toBe(0)
+  })
+
+  it('offsets the fixed-period animation by elapsed time without changing its duration', () => {
+    expect(countdownAnimationDelay({ serverNow: 12_500, validFrom: 10_000 })).toBe(-2_500)
+    expect(countdownAnimationDelay({ serverNow: 10_000, validFrom: 10_000 })).toBe(0)
+    expect(countdownAnimationDelay(null)).toBe(0)
   })
 
   it('displays only the current valid code and masks expired or missing codes', () => {
