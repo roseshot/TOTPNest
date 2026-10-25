@@ -31,19 +31,7 @@ export function parseShareInput(input: string): string | null {
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
 
-  const match = new RegExp('^/s/([^/]+)/?
-export function routeForPath(pathname: string): AppRoute {
-  if (pathname === '/') return { kind: 'home' }
-  if (pathname === '/admin' || pathname === '/admin/') return { kind: 'admin' }
-  const match = /^\/s\/([^/]+)\/?$/.exec(pathname)
-  if (match) {
-    const id = parseShareId(match[1])
-    return id ? { kind: 'share', id } : { kind: 'invalid-share' }
-  }
-  return { kind: 'not-found' }
-}
-
-).exec(url.pathname)
+  const match = /^\/s\/([^/]+)\/?$/.exec(url.pathname)
   if (!match) return null
   try {
     return parseShareId(decodeURIComponent(match[1]))
@@ -57,6 +45,7 @@ export function sharePathForId(input: string): string | null {
   return id === null ? null : '/s/' + id
 }
 
+/** Public routes are deliberately kept separate from administrator navigation. */
 export function routeForPath(pathname: string): AppRoute {
   if (pathname === '/') return { kind: 'home' }
   if (pathname === '/admin' || pathname === '/admin/') return { kind: 'admin' }
@@ -67,4 +56,3 @@ export function routeForPath(pathname: string): AppRoute {
   }
   return { kind: 'not-found' }
 }
-
