@@ -1,8 +1,7 @@
 import type { Hono } from 'hono'
 import { archiveShare } from './share-cleanup'
 import {
-  PASSWORD_FAILURE_POLICY, SHARE_ID_FAILURE_POLICY, assertNotLocked,
-  clearFailures, recordFailure
+  PASSWORD_FAILURE_POLICY, recordFailure
 } from './abuse'
 import {
   constantTimeEqual, issueUnlock, sha256, sharePasswordHash
@@ -11,7 +10,7 @@ import { newShareId } from './share-id'
 import type { Environment, Share } from './types'
 import { ApiError, UUID_V4_PATTERN } from './types'
 import {
-  blocked, codeFor, getEntry, getShare, jsonBody, limitedString, requireConfig,
+  assertNotLocked, blocked, codeFor, getEntry, getShare, jsonBody, limitedString, requireConfig,
   requireUnlocked, requireVisitorRateLimit, visitorIp
 } from './services'
 

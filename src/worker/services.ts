@@ -4,7 +4,7 @@ import { ApiError, MIN_PASSWORD_LENGTH, NEXT_THRESHOLD_MS } from './types'
 import { JsonBodyError, readJsonObject } from './json'
 import { lockedUntil, PASSWORD_FAILURE_POLICY, SHARE_ID_FAILURE_POLICY, recordFailure, type FailurePolicy } from './abuse'
 import { isShareId } from './share-id'
-import { constantTimeEqual, decrypt, unbase64url, verifyUnlock, keyedHash } from './crypto'
+import { constantTimeEqual, decrypt, sha256, unbase64url, verifyUnlock, keyedHash } from './crypto'
 import { normalizeSecret, totpAt, windowAt } from './totp'
 
 export function requireConfig(c: Ctx) {
