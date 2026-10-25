@@ -27,10 +27,10 @@ export function ShareLinksPanel({
             <div className="share-view-switch" role="group" aria-label="Share link views">
               <button type="button" aria-pressed={view === 'active'}
                 className={view === 'active' ? 'selected' : ''}
-                onClick={() => setShareView('active')}>Active links <span>{shares.length}</span></button>
+                onClick={() => onViewChange('active')}>Active links <span>{shares.length}</span></button>
               <button type="button" aria-pressed={view === 'history'}
                 className={view === 'history' ? 'selected' : ''}
-                onClick={() => setShareView('history')}>History <span>{history.length}</span></button>
+                onClick={() => onViewChange('history')}>History <span>{history.length}</span></button>
             </div>
             {view === 'active' ? <div className="card shares-list">
               {shares.length === 0 && <div className="empty-state">
