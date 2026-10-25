@@ -58,7 +58,6 @@ export function ShareIdHome() {
         </button>
       </form>
       <p className="public-caution"><span aria-hidden="true">✦</span>
-        If the sender set a password, you'll enter it next.
       </p>
     </section>
   </PublicFrame>
