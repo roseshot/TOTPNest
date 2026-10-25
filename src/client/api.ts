@@ -25,7 +25,7 @@ export class ApiFailure extends Error {
 
 function parseRetryAfter(value: string | null): number | undefined {
   if (!value) return undefined
-  if (/^\\d+$/.test(value.trim())) return Math.max(1, Number(value.trim()))
+  if (/^\d+$/.test(value.trim())) return Math.max(1, Number(value.trim()))
   const timestamp = Date.parse(value)
   return Number.isFinite(timestamp) ? Math.max(1, Math.ceil((timestamp - Date.now()) / 1000)) : undefined
 }
