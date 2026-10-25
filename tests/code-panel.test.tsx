@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createElement } from 'react'
-import { CodePanel, currentCodeText, upcomingCodeText } from '../src/client/CodePanel'
+import { CodePanel, countdownAnimationDuration, currentCodeText, upcomingCodeText } from '../src/client/CodePanel'
 
 describe('code display UX', () => {
+  it('anchors a smooth progress animation to the server-reported remaining lifetime', () => {
+    expect(countdownAnimationDuration({ serverNow: 10_000, expiresAt: 30_000 })).toBe(20_000)
+    expect(countdownAnimationDuration({ serverNow: 30_000, expiresAt: 30_000 })).toBe(0)
+    expect(countdownAnimationDuration(null)).toBe(0)
+  })
+
   it('displays only the current valid code and masks expired or missing codes', () => {
     expect(currentCodeText({ code: '123456', expiresAt: 30_000 }, 24_000)).toBe('123 456')
     expect(currentCodeText({ code: '123456', expiresAt: 30_000 }, 30_000)).toBe('••• •••')
