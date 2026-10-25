@@ -3,6 +3,7 @@ import { ApiFailure, request } from './api'
 import { CodePanel } from './CodePanel'
 import { Brand } from './Brand'
 import { readableError } from './messages'
+import { sharePathForId } from './routes'
 
 /** Public screens are intentionally separate from the administrator navigation. */
 function PublicFrame({ children, className = '' }: { children: ReactNode; className?: string }) {

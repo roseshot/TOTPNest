@@ -35,7 +35,7 @@ export function ShareCreator({ entry, onCreated, onCancel }: {
       setUrl(result.url)
       setPassword('')
       onCreated()
-    } catch (cause) { setError(message(cause)) }
+    } catch (cause) { setError(readableError(cause)) }
     finally { setBusy(false) }
   }
 
