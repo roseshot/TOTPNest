@@ -375,7 +375,7 @@ app.get('/api/admin/shares', async (c) => {
       WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
     ), uv_stats AS (
       SELECT share_id, COUNT(*) AS unique_visitors FROM share_unique_visitors
-      WHERE first_seen_at >= ? GROUP BY share_id
+      WHERE last_seen_at >= ? GROUP BY share_id
     )
     SELECT shares.id, shares.entry_id, shares.public_label, shares.note, shares.expires_at,
       shares.revoked_at, shares.created_at, shares.protected,

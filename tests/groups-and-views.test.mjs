@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../src/worker/index'
 import { base64url } from '../src/worker/crypto'
 
-const migrations = ['0001_init.sql', '0002_share_ids.sql', '0003_share_cleanup.sql', '0004_groups_and_views.sql', '0005_share_unique_visitors.sql', '0006_share_analytics_and_history.sql']
+const migrations = ['0001_init.sql', '0002_share_ids.sql', '0003_share_cleanup.sql', '0004_groups_and_views.sql', '0005_share_unique_visitors.sql', '0006_share_analytics_and_history.sql', '0007_share_unique_visitor_last_seen.sql']
 const origin = 'https://totpnest.example'
 const adminPassword = 'test-only-admin-password-123456'
 const masterKey = base64url(new Uint8Array(32).fill(7))
@@ -94,6 +94,7 @@ describe('groups and successful shared-code views', () => {
       ).run('legacy-share', visitOne, 123)
       sqlite.exec(readFileSync(new URL('../migrations/0005_share_unique_visitors.sql', import.meta.url), 'utf8'))
       sqlite.exec(readFileSync(new URL('../migrations/0006_share_analytics_and_history.sql', import.meta.url), 'utf8'))
+      sqlite.exec(readFileSync(new URL('../migrations/0007_share_unique_visitor_last_seen.sql', import.meta.url), 'utf8'))
       const receipt = sqlite.prepare('SELECT visit_id, visitor_hash FROM share_visits').get()
       expect(receipt).toEqual({ visit_id: visitOne, visitor_hash: null })
       expect(sqlite.prepare(
@@ -309,6 +310,40 @@ describe('groups and successful shared-code views', () => {
       const otherHash = sqlite.prepare('SELECT visitor_hash FROM share_visits WHERE share_id = ?')
         .get(secondShareId).visitor_hash
       expect(otherHash).not.toBe(firstHash)
+    } finally { sqlite.close() }
+  })
+
+  it('extends the rolling UV window when an existing browser returns', async () => {
+    const { sqlite, env } = database()
+    try {
+      const cookie = await admin(env)
+      const entryId = (await (await adminRequest(env, '/api/admin/entries', cookie, 'POST', newCode())).json()).id
+      const share = await (await adminRequest(env, '/api/admin/shares', cookie, 'POST', {
+        entryId, note: '', expiresInHours: 0
+      })).json()
+      const oldVisit = '33333333-3333-4333-8333-333333333333'
+      const newVisit = '44444444-4444-4444-8444-444444444444'
+      const browser = '77777777-7777-4777-8777-777777777777'
+      const oldSeen = Date.now() - 120 * 24 * 60 * 60_000
+      sqlite.prepare('INSERT INTO share_visits (share_id, visit_id, visitor_hash, viewed_at) VALUES (?, ?, ?, ?)')
+        .run(share.id, oldVisit, 'pending-hash', oldSeen)
+      // Use a real hash-shaped opaque browser key; the exact value is not exposed through the API.
+      const { sha256: digest } = await import('../src/worker/crypto')
+      const visitorHash = await digest('share-visitor-v1:' + share.id + ':' + browser)
+      sqlite.prepare('UPDATE share_visits SET visitor_hash = ? WHERE share_id = ? AND visit_id = ?')
+        .run(visitorHash, share.id, oldVisit)
+      sqlite.prepare('INSERT OR REPLACE INTO share_unique_visitors (share_id, visitor_hash, last_seen_at) VALUES (?, ?, ?)')
+        .run(share.id, visitorHash, oldSeen)
+      const recent = oldSeen + 120 * 24 * 60 * 60_000
+      vi.spyOn(Date, 'now').mockReturnValue(recent)
+      const response = await post(env, '/api/share/' + share.id + '/code', {}, '', {
+        'X-Share-Visit': newVisit, 'X-Share-Visitor': browser
+      })
+      expect(response.status).toBe(200)
+      expect(sqlite.prepare('SELECT last_seen_at FROM share_unique_visitors WHERE share_id = ? AND visitor_hash = ?')
+        .get(share.id, visitorHash).last_seen_at).toBe(recent)
+      const stats = await adminRequest(env, '/api/admin/shares', cookie)
+      expect((await stats.json()).shares[0].uniqueVisitors).toBe(1)
     } finally { sqlite.close() }
   })
 

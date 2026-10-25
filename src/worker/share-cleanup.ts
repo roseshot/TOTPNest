@@ -13,7 +13,7 @@ const ARCHIVE_SELECT = `
     shares.expires_at, shares.created_at, ?, __REASON__,
     COALESCE(stats.view_count, 0),
     (SELECT COUNT(*) FROM share_unique_visitors visitors
-      WHERE visitors.share_id = shares.id AND visitors.first_seen_at >= ?)
+      WHERE visitors.share_id = shares.id AND visitors.last_seen_at >= ?)
   FROM shares
   INNER JOIN entries ON entries.id = shares.entry_id
   LEFT JOIN share_stats stats ON stats.share_id = shares.id
@@ -56,7 +56,7 @@ export async function cleanupExpiredShares(db: D1Database, cutoff: number): Prom
     session.prepare('DELETE FROM rate_limits WHERE reset_at <= ?').bind(cutoff),
     session.prepare('DELETE FROM share_visits WHERE viewed_at < ?')
       .bind(cutoff - VISIT_RECEIPT_RETENTION_MS),
-    session.prepare('DELETE FROM share_unique_visitors WHERE first_seen_at < ?')
+    session.prepare('DELETE FROM share_unique_visitors WHERE last_seen_at < ?')
       .bind(cutoff - UNIQUE_VISITOR_RETENTION_MS)
   ])
 }

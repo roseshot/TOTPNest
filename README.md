@@ -301,7 +301,7 @@ Wrangler serves the built application at `http://127.0.0.1:8787` by default. Re-
 
 Migration `0004_groups_and_views.sql` adds groups and successful-view receipts **without changing or re-encrypting existing codes**. All existing entries initially appear under **Ungrouped**. A deleted group moves its codes back to Ungrouped; it does not delete codes, secrets, or related share links.
 
-Migration `0005_share_unique_visitors.sql` adds an optional visitor hash to existing visit receipts. Migration `0006_share_analytics_and_history.sql` adds recipient-visible labels, compact Views counters, rolling UV records, and non-sensitive share history. Existing Views are preserved. Previous visits have no visitor identity, so **UV starts from zero when this migration is deployed**; it cannot be reconstructed retroactively.
+Migration `0005_share_unique_visitors.sql` adds an optional visitor hash to existing visit receipts. Migration `0006_share_analytics_and_history.sql` adds recipient-visible labels, compact Views counters, rolling UV records, and non-sensitive share history. Migration `0007_share_unique_visitor_last_seen.sql` makes repeat visits extend the rolling 90-day UV window. Existing Views are preserved. Previous visits have no visitor identity, so **UV starts from zero when this migration is deployed**; it cannot be reconstructed retroactively.
 
 The administrator dashboard displays two numbers for each active share link. Revoked, expired, and account-deleted shares appear under **Share links → History**; history retains metadata and aggregate counts but not bearer IDs, password verifiers, or TOTP secrets.
 
