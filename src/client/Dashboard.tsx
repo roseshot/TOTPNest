@@ -9,6 +9,7 @@ import type { Theme } from './theme'
 import { readableError } from './messages'
 import { activeEntry, visibleEntries } from './selection'
 import { GroupManager } from './GroupManager'
+import { ShareLinksPanel } from './ShareLinksPanel'
 import { entriesInGroup, type Group, type GroupFilter } from './groups'
 
 type Entry = {
@@ -390,75 +391,11 @@ export function Dashboard({ onLogout, theme, onThemeToggle }: {
             </div>}
           </section>
         </div>}
-        {tab === 'shares' && <section className="share-manager-panel" role="tabpanel"
-          id="panel-shares" aria-labelledby="tab-shares" tabIndex={0}>
-          <div className="share-view-switch" role="group" aria-label="Share link views">
-            <button type="button" aria-pressed={shareView === 'active'}
-              className={shareView === 'active' ? 'selected' : ''}
-              onClick={() => setShareView('active')}>Active links <span>{shares.length}</span></button>
-            <button type="button" aria-pressed={shareView === 'history'}
-              className={shareView === 'history' ? 'selected' : ''}
-              onClick={() => setShareView('history')}>History <span>{shareHistory.length}</span></button>
-          </div>
-          {shareView === 'active' ? <div className="card shares-list">
-            {shares.length === 0 && <div className="empty-state">
-              <span className="empty-symbol" aria-hidden="true">↗</span>
-              <h2>{loading ? 'Loading share links...' : "You haven't shared any codes yet"}</h2>
-              {!loading && <>
-                <p className="muted">Choose an account first, then decide how long to share its code.</p>
-                <button type="button" className="primary" onClick={startNew}>
-                  {entries.length ? 'Create a share link' : 'Add a code'}
-                </button>
-              </>}
-            </div>}
-            {shares.map((share) => {
-              const revoked = share.revokedAt !== null
-              const expired = share.expiresAt !== null && share.expiresAt < Date.now()
-              return <div className="share-row" key={share.id}>
-                <div className="share-info">
-                  <span className="share-icon" aria-hidden="true">↗</span>
-                  <div><strong>{share.issuer || 'Unnamed'}</strong><span className="muted small share-account">{share.account}</span>
-                    {share.publicLabel && <span className="muted small">Recipient label: {share.publicLabel}</span>}
-                    <span className="muted small">{share.protected ? 'Password required' : 'Anyone with the link'}
-                      {share.note ? ' · ' + share.note : ''} · {share.expiresAt !== null
-                        ? 'Expires ' + formattedDate(share.expiresAt) : 'Does not expire'}</span>
-                    <span className="share-views" title="Views are lifetime successful page views. UV estimates unique browsers in the last 90 days.">
-                      <span>Views: {share.viewCount}</span><span aria-hidden="true">·</span>
-                      <span><abbr title="Unique browsers in the last 90 days">UV (90d)</abbr>: {share.uniqueVisitors}</span>
-                    </span></div>
-                </div>
-                <div className="share-actions">
-                  <span className={'status ' + (revoked || expired ? 'danger' : 'success')}>
-                    {revoked ? 'Stopped' : expired ? 'Expired' : 'Active'}</span>
-                  {!revoked && !expired && <button type="button" onClick={() => void copyLink(share.id)}>Copy link</button>}
-                  {!revoked && <button type="button" className="danger-button" onClick={() => void revoke(share.id)}>Stop sharing</button>}
-                </div>
-              </div>
-            })}
-          </div> : <div className="card shares-list">
-            {shareHistory.length === 0 ? <div className="empty-state">
-              <span className="empty-symbol" aria-hidden="true">◷</span>
-              <h2>No share history yet</h2>
-              <p className="muted">Revoked, expired, and deleted-account links will appear here.</p>
-            </div> : shareHistory.map((item) => <div className="share-row" key={item.id}>
-              <div className="share-info">
-                <span className="share-icon" aria-hidden="true">↗</span>
-                <div><strong>{item.issuer || 'Unnamed'}</strong>
-                  <span className="muted small share-account">{item.account}</span>
-                  {item.publicLabel && <span className="muted small">Recipient label: {item.publicLabel}</span>}
-                  <span className="muted small">{item.reason === 'revoked' ? 'Stopped sharing'
-                    : item.reason === 'expired' ? 'Expired' : 'Account deleted'} · Ended {formattedDate(item.endedAt)}</span>
-                  <span className="share-views">
-                    <span>Views: {item.viewCount}</span><span aria-hidden="true">·</span>
-                    <span><abbr title="Unique browsers during the final 90 days">UV (90d)</abbr>: {item.uniqueVisitors}</span>
-                  </span></div>
-              </div>
-              <div className="share-actions"><span className="status danger">
-                {item.reason === 'revoked' ? 'Stopped' : item.reason === 'expired' ? 'Expired' : 'Deleted'}
-              </span></div>
-            </div>)}
-          </div>}
-        </section>}
+        {tab === 'shares' && <ShareLinksPanel
+          shares={shares} history={shareHistory} view={shareView}
+          onViewChange={setShareView} loading={loading} entryCount={entries.length}
+          onCreateShare={startNew} onCopyLink={copyLink} onRevoke={revoke}
+        />}
       </main>
     </div>
   </div>

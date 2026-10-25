@@ -40,7 +40,7 @@ app.get('/api/health/live', (c) => c.json({ ok: true }))
 app.get('/api/health/ready', async (c) => {
   try {
     requireConfig(c)
-    await c.env.DB.withSession('first-primary').prepare('SELECT 1 AS ready').first()
+    await c.var.db.prepare('SELECT 1 AS ready').first()
     return c.json({ ok: true })
   } catch {
     return c.json({ ok: false }, 503)
