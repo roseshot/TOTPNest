@@ -42,7 +42,7 @@ export function ShareIdHome() {
       <span className="public-emblem" aria-hidden="true"><img src="/totpnest-logo.svg" alt="" /></span>
       <span className="eyebrow">VIEW A CODE</span>
       <h1 id="share-entry-title">View a shared sign-in code.</h1>
-      <p className="muted public-lead">Enter the Share ID you received from the sender. If they sent a link, open it instead.</p>
+      <p className="muted public-lead">Enter a Share ID or paste the share link you received from the sender.</p>
       <form className="public-form" onSubmit={openShare}>
         <label htmlFor="share-id-input">Share ID</label>
         <input id="share-id-input" name="shareId" type="text" autoComplete="off"
