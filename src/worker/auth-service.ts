@@ -1,6 +1,7 @@
 import { getCookie } from 'hono/cookie'
 import type { Ctx } from './types'
 import { ApiError } from './types'
+import { cookieName } from './core'
 import { lockedUntil, type FailurePolicy } from './abuse'
 import { keyedHash, sha256 } from './crypto'
 

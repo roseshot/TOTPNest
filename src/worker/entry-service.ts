@@ -1,6 +1,7 @@
 import type { Ctx, Entry, EntryInput, EntrySummary } from './types'
 import { ApiError } from './types'
 import { normalizeSecret } from './totp'
+import { limitedString } from './core'
 
 export function validateEntry(value: Record<string, unknown>, requiresSecret: boolean): EntryInput {
   const issuer = limitedString(value.issuer, 120, 'Issuer')

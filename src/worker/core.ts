@@ -1,5 +1,5 @@
 import type { Ctx } from './types'
-import { ApiError } from './types'
+import { ApiError, MIN_PASSWORD_LENGTH } from './types'
 import { JsonBodyError, readJsonObject } from './json'
 import { unbase64url } from './crypto'
 

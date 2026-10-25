@@ -5,7 +5,7 @@ import { decrypt, verifyUnlock } from './crypto'
 import { isShareId } from './share-id'
 import { totpAt, windowAt } from './totp'
 import { jsonBody } from './core'
-import { assertNotLocked, visitorIp } from './auth-service'
+import { assertNotLocked, blocked, visitorIp } from './auth-service'
 
 export async function getShare(c: Ctx): Promise<Share> {
   const failuresKey = 'share-id-miss:' + await visitorIp(c)
