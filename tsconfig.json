@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2026",
-    "lib": ["ES2026", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2026",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
@@ -10,7 +14,15 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "esModuleInterop": true,
-    "types": ["@cloudflare/workers-types", "vite/client"]
+    "types": [
+      "@cloudflare/workers-types",
+      "vite/client"
+    ]
   },
-  "include": ["src", "vite.config.ts", "tests"]
+  "include": [
+    "src",
+    "vite.config.ts",
+    "tests",
+    "playwright.config.ts"
+  ]
 }

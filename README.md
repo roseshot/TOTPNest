@@ -104,6 +104,7 @@ git clone https://github.com/roseshot/TOTPNest.git
 cd TOTPNest
 npm install
 npm run check
+npm run test:e2e
 ```
 
 For a working instance, create or select your D1 database, set `D1_DATABASE_NAME` and `D1_DATABASE_ID` in your build environment, and configure the independent Worker secrets `ADMIN_PASSWORD` and `DATA_ENCRYPTION_KEY`. Apply migrations before deployment. **Do not put real keys or TOTP data in the repository.**
@@ -390,7 +391,7 @@ Do not replace `DATA_ENCRYPTION_KEY` without a deliberate migration: existing en
 npm run check
 ```
 
-The CI pipeline validates code: TypeScript type checking, UV migration, per-share visitor deduplication and privacy tests, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, midnight share cleanup and immediate access revocation, public route isolation, responsive branding styles, indexing headers, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
+The CI pipeline validates code: TypeScript type checking, UV migration, per-share visitor deduplication and privacy tests, RFC 6238 and Base32 canonicalization tests, bounded JSON parsing, otpauth URI parsing, cryptography, D1 Sessions API routing/bookmark tests, random share ID generation, lockout behavior, midnight share cleanup and immediate access revocation, public route isolation, responsive branding styles, indexing headers, migration compatibility, build-time D1 configuration generation tests, Vite production bundling, and a Wrangler Worker dry-run build. GitHub Actions also installs Chromium and runs Playwright browser smoke tests for public-route isolation, share-page rendering, and narrow mobile layouts using Vite's static preview. These tests do not connect to a production Worker or D1 database. No copywriting or language audit runs in CI. GitHub Actions runs the checks on commits to `main` and on pull requests.
 
 ## API overview
 

@@ -19,3 +19,5 @@ jobs:
           package-manager-cache: false
       - run: npm install --no-audit --no-fund
       - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
