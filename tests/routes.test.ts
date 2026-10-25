@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseShareId, routeForPath, sharePathForId } from '../src/client/routes'
+import { parseShareId, parseShareInput, routeForPath, sharePathForId } from '../src/client/routes'
 
 const shortId = 'aB7kP2mQ9xR4tY6vN8zW3c'
 const migratedId = '0123456789abcdef0123456789abcdef'
@@ -31,10 +31,23 @@ describe('public and admin route isolation', () => {
     expect(sharePathForId(' ' + shortId + ' ')).toBe('/s/' + shortId)
     expect(sharePathForId(migratedId)).toBe('/s/' + migratedId)
     expect(sharePathForId(shortId.toLowerCase())).toBe('/s/' + shortId.toLowerCase())
-    for (const invalid of ['', 'admin', '/admin', 'https://example.com/s/' + shortId,
-      shortId + '/', '../admin', '0'.repeat(33), 'x'.repeat(21)]) {
+    for (const invalid of ['', 'admin', '/admin', shortId + '/',
+      '../admin', '0'.repeat(33), 'x'.repeat(21)]) {
       expect(sharePathForId(invalid)).toBeNull()
     }
+  })
+
+  it('extracts Share IDs from canonical share URLs and paths', () => {
+    expect(parseShareInput('https://totpnest.example/s/' + shortId)).toBe(shortId)
+    expect(parseShareInput('http://localhost:8787/s/' + migratedId + '/?source=copy#token=old'))
+      .toBe(migratedId)
+    expect(parseShareInput('totpnest.example/s/' + shortId)).toBe(shortId)
+    expect(parseShareInput('/s/' + shortId)).toBe(shortId)
+    expect(sharePathForId('https://totpnest.example/s/' + shortId)).toBe('/s/' + shortId)
+    expect(parseShareInput('https://example.com/admin/' + shortId)).toBeNull()
+    expect(parseShareInput('https://example.com/?share=' + shortId)).toBeNull()
+    expect(parseShareInput('javascript:alert(1)//s/' + shortId)).toBeNull()
+    expect(parseShareInput('https://example.com/s/' + shortId + '/extra')).toBeNull()
   })
 })
 
