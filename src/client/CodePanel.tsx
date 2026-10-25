@@ -21,6 +21,13 @@ function display(code: string): string {
 
 const NEXT_PREVIEW_WINDOW_MS = 5_000
 
+/** Duration for a CSS-driven countdown, anchored to the server clock at receipt. */
+export function countdownAnimationDuration(
+  frame: Pick<CodeWindow, 'serverNow' | 'expiresAt'> | null
+): number {
+  return frame ? Math.max(0, frame.expiresAt - frame.serverNow) : 0
+}
+
 /** Always keep the currently valid code in the main position. */
 export function currentCodeText(frame: Pick<CodeWindow, 'code' | 'expiresAt'> | null, now: number): string {
   return frame && now < frame.expiresAt ? display(frame.code) : '••• •••'
@@ -261,7 +268,12 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
     <div className="progress" role="progressbar" aria-label="Time remaining for current code"
       aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percentage)}
       aria-valuetext={current && !expired ? Math.ceil(remaining / 1000) + ' seconds left' : 'Waiting for a code'}>
-      <div className={'progress-fill ' + (expiringSoon ? 'amber' : '')} style={{ width: percentage + '%' }} />
+      <div key={current ? current.validFrom : 'loading'}
+        className={'progress-fill ' + (current ? '' : 'loading ') + (expiringSoon ? 'amber' : '')}
+        style={{
+          transform: 'scaleX(' + percentage / 100 + ')',
+          animationDuration: countdownAnimationDuration(current) + 'ms'
+        }} />
     </div>
     <div className="code-foot">
       <span role="status" aria-live="polite">{copied ? 'Copied to clipboard' : 'Updates automatically'}</span>
