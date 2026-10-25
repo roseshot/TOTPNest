@@ -21,11 +21,18 @@ function display(code: string): string {
 
 const NEXT_PREVIEW_WINDOW_MS = 5_000
 
-/** Duration for a CSS-driven countdown, anchored to the server clock at receipt. */
+/** A progress animation always spans one complete code-refresh period. */
 export function countdownAnimationDuration(
-  frame: Pick<CodeWindow, 'serverNow' | 'expiresAt'> | null
+  frame: Pick<CodeWindow, 'validFrom' | 'expiresAt'> | null
 ): number {
-  return frame ? Math.max(0, frame.expiresAt - frame.serverNow) : 0
+  return frame ? Math.max(0, frame.expiresAt - frame.validFrom) : 0
+}
+
+/** Offset the fixed-period animation by time already elapsed before the response arrived. */
+export function countdownAnimationDelay(
+  frame: Pick<CodeWindow, 'serverNow' | 'validFrom'> | null
+): number {
+  return frame ? -Math.max(0, frame.serverNow - frame.validFrom) : 0
 }
 
 /** Always keep the currently valid code in the main position. */
@@ -272,7 +279,8 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
         className={'progress-fill ' + (current ? '' : 'loading ') + (expiringSoon ? 'amber' : '')}
         style={{
           transform: 'scaleX(' + percentage / 100 + ')',
-          animationDuration: countdownAnimationDuration(current) + 'ms'
+          animationDuration: countdownAnimationDuration(current) + 'ms',
+          animationDelay: countdownAnimationDelay(current) + 'ms'
         }} />
     </div>
     <div className="code-foot">
