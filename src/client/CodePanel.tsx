@@ -32,7 +32,9 @@ export function countdownAnimationDuration(
 export function countdownAnimationDelay(
   frame: Pick<CodeWindow, 'serverNow' | 'validFrom'> | null
 ): number {
-  return frame ? -Math.max(0, frame.serverNow - frame.validFrom) : 0
+  if (!frame) return 0
+  const elapsed = Math.max(0, frame.serverNow - frame.validFrom)
+  return elapsed > 0 ? -elapsed : 0
 }
 
 /** Always keep the currently valid code in the main position. */
