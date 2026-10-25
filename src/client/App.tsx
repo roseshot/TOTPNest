@@ -17,7 +17,7 @@ type Entry = {
 }
 type Share = {
   id: string; entryId: string; issuer: string; account: string; protected: boolean;
-  note: string; expiresAt: number | null; revokedAt: number | null; createdAt: number;
+  note: string; publicLabel: string; expiresAt: number | null; revokedAt: number | null; createdAt: number;
   viewCount: number; uniqueVisitors: number
 }
 type ShareHistory = {
@@ -612,7 +612,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
     try {
       await request('/api/admin/entries/' + item.id, { method: 'DELETE' })
       setEditor(null); setSharing(false)
-      await Promise.all([reloadEntries(), reloadShares()])
+      await Promise.all([reloadEntries(), reloadShares(), reloadHistory()])
     } catch (cause) { setError(message(cause)) }
   }
   const revoke = async (id: string) => {
