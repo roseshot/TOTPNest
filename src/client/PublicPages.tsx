@@ -57,8 +57,6 @@ export function ShareIdHome() {
           View shared code <span aria-hidden="true">→</span>
         </button>
       </form>
-      <p className="public-caution"><span aria-hidden="true">✦</span>
-      </p>
     </section>
   </PublicFrame>
 }
