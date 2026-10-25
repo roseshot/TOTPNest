@@ -103,6 +103,7 @@ flowchart LR
 git clone https://github.com/roseshot/TOTPNest.git
 cd TOTPNest
 npm install
+npx playwright install chromium
 npm run check
 npm run test:e2e
 ```
