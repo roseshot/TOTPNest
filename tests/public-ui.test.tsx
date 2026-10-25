@@ -14,7 +14,8 @@ describe('public UI', () => {
   it('shows the Share ID form instead of the admin login at the homepage', () => {
     const html = renderPath('/')
     expect(html).toContain('id="share-id-input"')
-    expect(html).toContain('Copy the ID exactly as it appears, including capital letters.')
+    expect(html).toContain('Paste a Share ID or share link. IDs are case-sensitive.')
+    expect(html).toContain('placeholder="Enter a Share ID or paste a share link"')
     expect(html).toContain('View a shared sign-in code.')
     expect(html).toContain('View shared code')
     expect(html).not.toContain('encrypted storage')
