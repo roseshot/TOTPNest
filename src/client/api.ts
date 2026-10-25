@@ -20,7 +20,14 @@ export function shouldAdvanceBookmark(method: string, sent: string | null, store
 }
 
 export class ApiFailure extends Error {
-  constructor(message: string, public status: number, public code = '') { super(message) }
+  constructor(message: string, public status: number, public code = '', public retryAfterSeconds?: number) { super(message) }
+}
+
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined
+  if (/^\\d+$/.test(value.trim())) return Math.max(1, Number(value.trim()))
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? Math.max(1, Math.ceil((timestamp - Date.now()) / 1000)) : undefined
 }
 
 export async function request<T>(
@@ -65,7 +72,8 @@ export async function request<T>(
     const error = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
     throw new ApiFailure(
       typeof error.error === 'string' ? error.error : 'Request failed',
-      response.status, typeof error.code === 'string' ? error.code : ''
+      response.status, typeof error.code === 'string' ? error.code : '',
+      parseRetryAfter(response.headers.get('Retry-After'))
     )
   }
   return payload as T

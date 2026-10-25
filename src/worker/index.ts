@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
-import { cleanupExpiredShares } from './share-cleanup'
+import { archiveShare, archiveSharesForEntry, cleanupExpiredShares } from './share-cleanup'
 import { BOOKMARK_HEADER, openSession, type DbSession } from './db'
 import { JsonBodyError, readJsonObject } from './json'
 import { clearFailures, lockedUntil, recordFailure, PASSWORD_FAILURE_POLICY, SHARE_ID_FAILURE_POLICY, type FailurePolicy } from './abuse'
 import { isShareId, newShareId } from './share-id'
 import type { Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
-import { constantTimeEqual, decrypt, encrypt, issueUnlock, randomToken, sha256, sharePasswordHash, unbase64url, verifyUnlock } from './crypto'
+import { constantTimeEqual, decrypt, encrypt, issueUnlock, keyedHash, randomToken, sha256, sharePasswordHash, unbase64url, verifyUnlock } from './crypto'
 import { normalizeSecret, totpAt, windowAt, type TotpAlgorithm } from './totp'
 
 type Bindings = { DB: D1Database; ADMIN_PASSWORD: string; DATA_ENCRYPTION_KEY: string; PUBLIC_CODE_RATE_LIMITER: RateLimit }
@@ -18,7 +18,7 @@ type Entry = {
   created_at: number; updated_at: number
 }
 type Share = {
-  id: string; public_id: string; entry_id: string;
+  id: string; public_id: string; public_label: string; entry_id: string;
   password_hash: string | null; note: string; expires_at: number | null;
   revoked_at: number | null; created_at: number
 }
@@ -132,7 +132,8 @@ async function getAdminSession(c: Ctx): Promise<boolean> {
   return Boolean(row)
 }
 async function visitorIp(c: Ctx): Promise<string> {
-  return sha256(c.req.header('CF-Connecting-IP') || 'unknown')
+  return keyedHash(c.env.DATA_ENCRYPTION_KEY, 'visitor-ip-v1',
+    c.req.header('CF-Connecting-IP') || 'unknown')
 }
 function blocked(until: number): ApiError {
   const wait = Math.max(1, Math.ceil((until - Date.now()) / 1000))
@@ -167,13 +168,13 @@ async function getShare(c: Ctx): Promise<Share> {
 }
 async function requireUnlocked(c: Ctx, share: Share) {
   if (!share.password_hash) return
-  await assertNotLocked(c, 'share-password-fail:' + await visitorIp(c), PASSWORD_FAILURE_POLICY)
+  await assertNotLocked(c, 'share-password-fail:' + share.id + ':' + await visitorIp(c), PASSWORD_FAILURE_POLICY)
   const ticket = c.req.header('X-Share-Unlock') || ''
   if (!await verifyUnlock(c.env.DATA_ENCRYPTION_KEY, share.id, ticket, Date.now())) {
     throw new ApiError(401, 'Share password required', 'PASSWORD_REQUIRED')
   }
 }
-async function codeFor(c: Ctx, entry: Entry, next = false) {
+async function codeFor(c: Ctx, entry: Entry, next = false, publicLabel = '') {
   const now = Date.now()
   const w = windowAt(entry.period, now)
   let requestedWindow = w
@@ -198,7 +199,7 @@ async function codeFor(c: Ctx, entry: Entry, next = false) {
   const code = await totpAt(secret, entry, requestedWindow.validFrom)
   // No issuer, account, secret, entryId or sharing metadata in visitor responses.
   return c.json({ code, serverNow: Date.now(), validFrom: requestedWindow.validFrom,
-    expiresAt: requestedWindow.expiresAt, ...(next ? { kind } : {}) })
+    expiresAt: requestedWindow.expiresAt, ...(next ? { kind } : {}), ...(publicLabel ? { label: publicLabel } : {}) })
 }
 
 app.use('/api/*', async (c, next) => {
@@ -227,6 +228,16 @@ app.use('/api/admin/*', async (c, next) => {
 })
 
 app.get('/api/health', (c) => c.json({ ok: true }))
+app.get('/api/health/live', (c) => c.json({ ok: true }))
+app.get('/api/health/ready', async (c) => {
+  try {
+    requireConfig(c)
+    await c.env.DB.withSession('first-primary').prepare('SELECT 1 AS ready').first()
+    return c.json({ ok: true })
+  } catch {
+    return c.json({ ok: false }, 503)
+  }
+})
 
 app.get('/api/admin/session', async (c) => c.json({ authenticated: await getAdminSession(c) }))
 app.post('/api/admin/login', async (c) => {
@@ -341,7 +352,9 @@ app.put('/api/admin/entries/:id/group', async (c) => {
   return c.json({ ok: true })
 })
 app.delete('/api/admin/entries/:id', async (c) => {
-  await c.var.db.prepare('DELETE FROM entries WHERE id=?').bind(c.req.param('id')).run()
+  const id = c.req.param('id')
+  await archiveSharesForEntry(c.var.db, id, Date.now())
+  await c.var.db.prepare('DELETE FROM entries WHERE id=?').bind(id).run()
   return c.json({ ok: true })
 })
 app.post('/api/admin/entries/:id/code', async (c) => {
@@ -354,32 +367,42 @@ app.post('/api/admin/entries/:id/next', async (c) => {
 })
 
 app.get('/api/admin/shares', async (c) => {
+  const now = Date.now()
   const rows = await c.var.db.prepare(`WITH active_shares AS (
-      SELECT id, entry_id, note, expires_at, revoked_at, created_at,
+      SELECT id, entry_id, public_label, note, expires_at, revoked_at, created_at,
         (password_hash IS NOT NULL) AS protected
       FROM shares
       WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
-    ), visit_stats AS (
-      SELECT visits.share_id, COUNT(*) AS view_count,
-        COUNT(DISTINCT visits.visitor_hash) AS unique_visitors
-      FROM share_visits AS visits
-      INNER JOIN active_shares AS active ON active.id = visits.share_id
-      GROUP BY visits.share_id
+    ), uv_stats AS (
+      SELECT share_id, COUNT(*) AS unique_visitors FROM share_unique_visitors
+      WHERE first_seen_at >= ? GROUP BY share_id
     )
-    SELECT shares.id, shares.entry_id, shares.note, shares.expires_at,
+    SELECT shares.id, shares.entry_id, shares.public_label, shares.note, shares.expires_at,
       shares.revoked_at, shares.created_at, shares.protected,
-      COALESCE(visit_stats.view_count, 0) AS view_count,
-      COALESCE(visit_stats.unique_visitors, 0) AS unique_visitors,
+      COALESCE(stats.view_count, 0) AS view_count,
+      COALESCE(uv_stats.unique_visitors, 0) AS unique_visitors,
       entries.issuer, entries.account
     FROM active_shares AS shares
     JOIN entries ON entries.id = shares.entry_id
-    LEFT JOIN visit_stats ON visit_stats.share_id = shares.id
-    ORDER BY shares.created_at DESC`).bind(Date.now()).all()
+    LEFT JOIN share_stats AS stats ON stats.share_id = shares.id
+    LEFT JOIN uv_stats ON uv_stats.share_id = shares.id
+    ORDER BY shares.created_at DESC`).bind(now, now - 90 * 24 * 60 * 60_000).all()
   return c.json({ shares: rows.results.map((row) => ({
-    id: row.id, entryId: row.entry_id, note: row.note, expiresAt: row.expires_at,
+    id: row.id, entryId: row.entry_id, note: row.note, publicLabel: row.public_label, expiresAt: row.expires_at,
     revokedAt: row.revoked_at, createdAt: row.created_at,
     viewCount: Number(row.view_count), uniqueVisitors: Number(row.unique_visitors),
     protected: Boolean(row.protected), issuer: row.issuer, account: row.account
+  })) })
+})
+app.get('/api/admin/share-history', async (c) => {
+  const rows = await c.var.db.prepare(`SELECT id, issuer, account, public_label, note,
+      expires_at, created_at, ended_at, reason, view_count, unique_visitors
+    FROM share_history ORDER BY ended_at DESC LIMIT 100`).all()
+  return c.json({ history: rows.results.map((row) => ({
+    id: row.id, issuer: row.issuer, account: row.account, publicLabel: row.public_label,
+    note: row.note, expiresAt: row.expires_at, createdAt: row.created_at,
+    endedAt: row.ended_at, reason: row.reason, viewCount: Number(row.view_count),
+    uniqueVisitors: Number(row.unique_visitors)
   })) })
 })
 app.post('/api/admin/shares', async (c) => {
@@ -388,6 +411,7 @@ app.post('/api/admin/shares', async (c) => {
   if (typeof body.entryId !== 'string') throw new ApiError(400, 'Select a TOTP entry')
   await getEntry(c, body.entryId)
   const note = limitedString(body.note ?? '', 120, 'Note')
+  const publicLabel = limitedString(body.publicLabel ?? '', 80, 'Public label')
   const hours = body.expiresInHours
   if (typeof hours !== 'number' || !Number.isInteger(hours) || hours < 0 || hours > 720) {
     throw new ApiError(400, 'Expiration must be permanent or within 30 days')
@@ -404,9 +428,9 @@ app.post('/api/admin/shares', async (c) => {
   // Legacy columns remain until a later cleanup migration, but new links have no token.
   const unusedTokenHash = await sha256('id-only-share-v2\0' + id)
   await c.var.db.prepare(`INSERT INTO shares
-    (id,public_id,entry_id,token_hash,token_nonce,token_ciphertext,password_hash,note,expires_at,revoked_at,created_at)
-    VALUES (?,?,?,?,?,?,?,?,?,NULL,?)`)
-    .bind(id, id, body.entryId, unusedTokenHash, '', '',
+    (id,public_id,public_label,entry_id,token_hash,token_nonce,token_ciphertext,password_hash,note,expires_at,revoked_at,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?)`)
+    .bind(id, id, publicLabel, body.entryId, unusedTokenHash, '', '',
       passwordHash, note, expiresAt, now).run()
   return c.json({ id, url: new URL('/s/' + id, c.req.url).toString() }, 201)
 })
@@ -422,8 +446,11 @@ app.get('/api/admin/shares/:id/link', async (c) => {
 app.delete('/api/admin/shares/:id', async (c) => {
   // Revoke immediately, but retain the row for the next UTC midnight purge.
   // Do not move the original revocation time on repeated requests.
+  const id = c.req.param('id')
+  const now = Date.now()
   await c.var.db.prepare('UPDATE shares SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL')
-    .bind(Date.now(), c.req.param('id')).run()
+    .bind(now, id).run()
+  await archiveShare(c.var.db, id, now)
   return c.json({ ok: true })
 })
 
@@ -432,7 +459,7 @@ app.post('/api/share/:id/unlock', async (c) => {
   await requireVisitorRateLimit(c, 'share')
   const share = await getShare(c)
   if (!share.password_hash) return c.json({ unlocked: true })
-  const failuresKey = 'share-password-fail:' + await visitorIp(c)
+  const failuresKey = 'share-password-fail:' + share.id + ':' + await visitorIp(c)
   await assertNotLocked(c, failuresKey, PASSWORD_FAILURE_POLICY)
   const body = await jsonBody(c)
   if (typeof body.password !== 'string' || body.password.length > 128 ||
@@ -442,8 +469,7 @@ app.post('/api/share/:id/unlock', async (c) => {
     if (until !== null) throw blocked(until)
     throw new ApiError(401, 'Incorrect share password', 'BAD_SHARE_PASSWORD')
   }
-  // Success does not clear IP-wide share-password failures: otherwise a known
-  // password for one share could reset the guessing budget for other shares.
+  // Successful unlocks do not reset the failure budget for this visitor/share pair.
   const ticket = await issueUnlock(c.env.DATA_ENCRYPTION_KEY, share.id, Date.now())
   return c.json({ unlockToken: ticket })
 })
@@ -452,7 +478,7 @@ app.post('/api/share/:id/code', async (c) => {
   await requireVisitorRateLimit(c, 'share')
   const share = await getShare(c)
   await requireUnlocked(c, share)
-  const response = await codeFor(c, await getEntry(c, share.entry_id))
+  const response = await codeFor(c, await getEntry(c, share.entry_id), false, share.public_label)
   // Each visit counts once; an anonymous browser ID estimates unique visitors.
   // Only successful authorized code views are counted. Never store IPs or user agents.
   const visitId = c.req.header('X-Share-Visit')
@@ -483,7 +509,7 @@ app.post('/api/share/:id/next', async (c) => {
   await requireVisitorRateLimit(c, 'share')
   const share = await getShare(c)
   await requireUnlocked(c, share)
-  return codeFor(c, await getEntry(c, share.entry_id), true)
+  return codeFor(c, await getEntry(c, share.entry_id), true, share.public_label)
 })
 
 app.onError((error, c) => {

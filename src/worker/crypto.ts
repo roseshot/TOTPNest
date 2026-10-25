@@ -95,6 +95,11 @@ export async function decrypt(nonce: string, ciphertext: string, key: string, co
 }
 
 /** Keyed password verifier: share ID is a unique salt, KDF key lives outside D1. */
+export async function keyedHash(master: string, purpose: string, value: string): Promise<string> {
+  const key = await signKey(master, purpose)
+  return base64url(new Uint8Array(await crypto.subtle.sign('HMAC', key, utf8(value))))
+}
+
 export async function sharePasswordHash(master: string, shareId: string, password: string): Promise<string> {
   const key = await signKey(master, 'share-password-v1')
   return base64url(new Uint8Array(await crypto.subtle.sign(

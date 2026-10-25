@@ -670,3 +670,26 @@ button:not(.primary):not(.quiet):not(.sidebar-link):not(.entry-row):not(.danger-
   .account-group-move { align-items: flex-start; flex-direction: column; }
   .account-group-move select { flex: initial; width: 100%; }
 }
+
+
+/* Share-link context and Active/History navigation. */
+.share-public-label {
+  margin: 0 0 12px; padding: 10px 13px;
+  border: 1px solid var(--stroke); border-radius: 11px;
+  color: var(--text); background: var(--surface-soft);
+  font-weight: 650; overflow-wrap: anywhere;
+}
+.share-view-switch { display: flex; gap: 8px; margin: 0 0 12px; }
+.share-view-switch button {
+  min-height: 40px; padding: 8px 13px; border: 1px solid var(--stroke);
+  border-radius: 10px; color: var(--muted); background: var(--surface);
+}
+.share-view-switch button[aria-pressed="true"] {
+  border-color: var(--accent); color: var(--text); background: var(--surface-soft);
+  font-weight: 700;
+}
+.share-view-switch button span { margin-left: 5px; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) {
+  .share-view-switch { width: 100%; }
+  .share-view-switch button { flex: 1; }
+}

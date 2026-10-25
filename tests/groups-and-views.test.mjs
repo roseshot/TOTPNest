@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../src/worker/index'
 import { base64url } from '../src/worker/crypto'
 
-const migrations = ['0001_init.sql', '0002_share_ids.sql', '0003_share_cleanup.sql', '0004_groups_and_views.sql', '0005_share_unique_visitors.sql']
+const migrations = ['0001_init.sql', '0002_share_ids.sql', '0003_share_cleanup.sql', '0004_groups_and_views.sql', '0005_share_unique_visitors.sql', '0006_share_analytics_and_history.sql']
 const origin = 'https://totpnest.example'
 const adminPassword = 'test-only-admin-password-123456'
 const masterKey = base64url(new Uint8Array(32).fill(7))
@@ -93,6 +93,7 @@ describe('groups and successful shared-code views', () => {
         'INSERT INTO share_visits (share_id, visit_id, viewed_at) VALUES (?, ?, ?)'
       ).run('legacy-share', visitOne, 123)
       sqlite.exec(readFileSync(new URL('../migrations/0005_share_unique_visitors.sql', import.meta.url), 'utf8'))
+      sqlite.exec(readFileSync(new URL('../migrations/0006_share_analytics_and_history.sql', import.meta.url), 'utf8'))
       const receipt = sqlite.prepare('SELECT visit_id, visitor_hash FROM share_visits').get()
       expect(receipt).toEqual({ visit_id: visitOne, visitor_hash: null })
       expect(sqlite.prepare(
@@ -101,6 +102,8 @@ describe('groups and successful shared-code views', () => {
       expect(sqlite.prepare(
         'SELECT COUNT(*) AS views FROM share_visits WHERE share_id = ?'
       ).get('legacy-share').views).toBe(1)
+      expect(sqlite.prepare('SELECT view_count FROM share_stats WHERE share_id = ?').get('legacy-share').view_count).toBe(1)
+      expect(sqlite.prepare('SELECT COUNT(*) AS uv FROM share_unique_visitors WHERE share_id = ?').get('legacy-share').uv).toBe(0)
     } finally { sqlite.close() }
   })
 
@@ -236,6 +239,7 @@ describe('groups and successful shared-code views', () => {
       const listed = await adminRequest(env, '/api/admin/shares', cookie)
       expect((await listed.json()).shares[0].viewCount).toBe(2)
       expect((await adminRequest(env, '/api/admin/shares', cookie).then(r => r.json())).shares[0].uniqueVisitors).toBe(0)
+      expect(sqlite.prepare('SELECT view_count FROM share_stats WHERE share_id=?').get(id).view_count).toBe(2)
       expect(sqlite.prepare('SELECT COUNT(*) AS n FROM share_visits WHERE share_id=?').get(id).n).toBe(2)
 
       // A revoked link never increments its views, and the receipts follow the share on cleanup.
@@ -282,6 +286,7 @@ describe('groups and successful shared-code views', () => {
       const stats = (await list.json()).shares.find((share) => share.id === shareId)
       expect(stats.viewCount).toBe(5)
       expect(stats.uniqueVisitors).toBe(2)
+      expect(sqlite.prepare('SELECT COUNT(*) AS n FROM share_unique_visitors WHERE share_id=?').get(shareId).n).toBe(2)
 
       const receipts = sqlite.prepare(
         'SELECT visitor_hash FROM share_visits WHERE share_id = ? AND visitor_hash IS NOT NULL'

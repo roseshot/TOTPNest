@@ -9,6 +9,7 @@ type CodeWindow = {
   validFrom: number
   expiresAt: number
   kind?: 'current' | 'next'
+  label?: string
 }
 type CodeFrame = CodeWindow & { receivedAt: number }
 type Props = { endpoint: string; unlock?: string; onAuthError?: (err: ApiFailure) => void }
@@ -105,7 +106,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
         const err = failure as ApiFailure
         setError(readableError(err))
         authError.current?.(err)
-        retryAt.current = err.code === 'LOCKED' ? Number.POSITIVE_INFINITY : performance.now() + 3_000
+        retryAt.current = performance.now() + (err.code === 'LOCKED' ? (err.retryAfterSeconds ?? 60) * 1000 : 3_000)
       }
     } finally {
       if (version === generation.current) {
@@ -139,7 +140,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
         setError(err.code === 'TOO_EARLY' ? '' : readableError(err))
         authError.current?.(err)
         requestedFor.current = null
-        retryAt.current = err.code === 'LOCKED' ? Number.POSITIVE_INFINITY : performance.now() + 1_500
+        retryAt.current = performance.now() + (err.code === 'LOCKED' ? (err.retryAfterSeconds ?? 60) * 1000 : 1_500)
       }
     } finally {
       if (version === generation.current) {
@@ -240,6 +241,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
 
 
   return <section className="code-panel" aria-label="Verification code">
+    {current?.label && <p className="share-public-label">{current.label}</p>}
     <div className="code-head">
       <span className="code-kicker">SIGN-IN CODE</span>
       <span role="status" className={'status ' + (!current || expired || expiringSoon ? 'warning' : 'success')}>
@@ -286,7 +288,7 @@ export function CodePanel({ endpoint, unlock, onAuthError }: Props) {
         onFocus={(event) => event.currentTarget.select()} autoComplete="off" />
     </div>}
     {error && <div className="message error" role="alert">{error}
-      {Number.isFinite(retryAt.current) && <button className="link-button"
+      {Number.isFinite(retryAt.current) && performance.now() >= retryAt.current && <button className="link-button"
         onClick={() => { retryAt.current = 0; void fetchCurrent() }}>Retry</button>}</div>}
   </section>
 }

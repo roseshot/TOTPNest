@@ -9,6 +9,7 @@ const migrate = readFileSync(new URL('../migrations/0002_share_ids.sql', import.
 const cleanupMigration = readFileSync(new URL('../migrations/0003_share_cleanup.sql', import.meta.url), 'utf8')
 const groupMigration = readFileSync(new URL('../migrations/0004_groups_and_views.sql', import.meta.url), 'utf8')
 const visitorMigration = readFileSync(new URL('../migrations/0005_share_unique_visitors.sql', import.meta.url), 'utf8')
+const analyticsMigration = readFileSync(new URL('../migrations/0006_share_analytics_and_history.sql', import.meta.url), 'utf8')
 const master = base64url(new Uint8Array(32).fill(7))
 const adminPassword = 'test-only-admin-password-123456'
 const origin = 'https://totpnest.example'
@@ -93,6 +94,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       const migrated = sqlite.prepare('SELECT * FROM shares WHERE id = ?').get(oldId)
       expect(migrated.public_id).toMatch(/^[0-9a-f]{32}$/)
       expect(migrated.public_id).not.toBe(oldId)
@@ -112,6 +114,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       for (let i = 0; i < 4; i++) {
         expect((await post(env, '/api/admin/login', { password: 'incorrect' })).status).toBe(401)
       }
@@ -133,6 +136,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       const validId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
       const now = 1_790_000_000_000
       vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -157,6 +161,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       const validId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
       const now = 1_790_000_000_000
       vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -184,6 +189,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       const validId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
       vi.spyOn(Date, 'now').mockReturnValue(1_790_000_000_000)
       for (let i = 0; i < 2; i++) {
@@ -204,6 +210,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       sqlite.exec(cleanupMigration)
       const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(id).public_id
       const midnight = Date.parse('2026-10-24T00:00:00Z')
@@ -237,6 +244,7 @@ describe('share migration and brute-force protection', () => {
 
       await worker.scheduled({ cron: '0 0 * * *', scheduledTime: midnight }, env, {})
       expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)).toBeUndefined()
+      expect(sqlite.prepare('SELECT reason FROM share_history WHERE id = ?').get(id)).toMatchObject({ reason: 'revoked' })
       expect(sqlite.prepare('SELECT id FROM entries WHERE id = ?').get('entry-one')).toBeDefined()
     } finally { sqlite.close() }
   })
@@ -249,6 +257,7 @@ describe('share migration and brute-force protection', () => {
         sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
         if (status === 'revoked') {
           sqlite.prepare('UPDATE shares SET revoked_at = ? WHERE id = ?').run(123, id)
         } else if (status === 'expired') {
@@ -271,6 +280,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       sqlite.exec(cleanupMigration)
       const publicId = sqlite.prepare('SELECT public_id FROM shares WHERE id = ?').get(oldId).public_id
       const midnight = Date.parse('2026-10-24T00:00:00Z')
@@ -316,6 +326,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       sqlite.exec(cleanupMigration)
       const midnight = Date.parse('2026-10-24T00:00:00Z')
       const justAfterMidnight = midnight + 5_000
@@ -343,6 +354,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       sqlite.exec(cleanupMigration)
       const midnight = Date.parse('2026-10-24T00:00:00Z')
       const expiredAt = midnight + 2_000
@@ -358,6 +370,108 @@ describe('share migration and brute-force protection', () => {
     } finally { sqlite.close() }
   })
 
+  it('keeps password lockouts isolated to one share for the same visitor', async () => {
+    const { sqlite, env } = database()
+    try {
+      await seedEntry(sqlite)
+      sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
+      sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
+      const login = await post(env, '/api/admin/login', { password: adminPassword })
+      const cookie = login.headers.get('set-cookie')?.split(';')[0]
+      const create = async (note) => {
+        const response = await post(env, '/api/admin/shares', {
+          entryId: 'entry-one', note, expiresInHours: 24, password: 'correct-password'
+        }, '203.0.113.10', { Cookie: cookie })
+        expect(response.status).toBe(201)
+        return (await response.json()).id
+      }
+      const firstId = await create('First')
+      const secondId = await create('Second')
+      vi.spyOn(Date, 'now').mockReturnValue(1_790_000_000_000)
+      for (let i = 0; i < 4; i++) {
+        expect((await post(env, '/api/share/' + firstId + '/unlock', { password: 'wrong' })).status).toBe(401)
+      }
+      expect((await post(env, '/api/share/' + firstId + '/unlock', { password: 'wrong' })).status).toBe(429)
+      const second = await post(env, '/api/share/' + secondId + '/unlock', { password: 'correct-password' })
+      expect(second.status).toBe(200)
+    } finally { sqlite.close() }
+  })
+
+  it('archives share metadata when the underlying TOTP entry is deleted', async () => {
+    const { sqlite, env } = database()
+    try {
+      await seedEntry(sqlite)
+      sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
+      sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
+      const login = await post(env, '/api/admin/login', { password: adminPassword })
+      const cookie = login.headers.get('set-cookie')?.split(';')[0]
+      const created = await post(env, '/api/admin/shares', {
+        entryId: 'entry-one', note: 'Private note', publicLabel: 'Build bot', expiresInHours: 24
+      }, '203.0.113.10', { Cookie: cookie })
+      const id = (await created.json()).id
+      const deleted = await app.request(origin + '/api/admin/entries/entry-one', {
+        method: 'DELETE', headers: { Origin: origin, Cookie: cookie }
+      }, env)
+      expect(deleted.status).toBe(200)
+      const history = sqlite.prepare('SELECT * FROM share_history WHERE id = ?').get(id)
+      expect(history).toMatchObject({ reason: 'entry_deleted', public_label: 'Build bot', note: 'Private note' })
+      expect(history).not.toHaveProperty('public_id')
+      expect(sqlite.prepare('SELECT id FROM shares WHERE id = ?').get(id)).toBeUndefined()
+    } finally { sqlite.close() }
+  })
+
+  it('cleans stale sessions, lockout rows, view receipts and unique-browser records', async () => {
+    const { sqlite, env } = database()
+    try {
+      const id = await seedLegacyShare(sqlite)
+      sqlite.exec(migrate)
+      sqlite.exec(groupMigration)
+      sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
+      const cutoff = Date.parse('2026-10-24T00:00:00Z')
+      sqlite.prepare('INSERT INTO sessions (token_hash, expires_at, created_at) VALUES (?, ?, ?)')
+        .run('expired-session', cutoff - 1, cutoff - 1000)
+      sqlite.prepare('INSERT INTO sessions (token_hash, expires_at, created_at) VALUES (?, ?, ?)')
+        .run('live-session', cutoff + 1000, cutoff - 1000)
+      sqlite.prepare('INSERT INTO rate_limits (key, count, reset_at) VALUES (?, ?, ?)')
+        .run('expired-lock', 5, cutoff - 1)
+      sqlite.prepare('INSERT INTO rate_limits (key, count, reset_at) VALUES (?, ?, ?)')
+        .run('live-lock', 1, cutoff + 1000)
+      const staleVisit = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+      const freshVisit = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+      const oldVisitor = 'old-browser-hash'
+      const newVisitor = 'new-browser-hash'
+      sqlite.prepare('INSERT INTO share_visits (share_id, visit_id, visitor_hash, viewed_at) VALUES (?, ?, ?, ?)')
+        .run(id, staleVisit, oldVisitor, cutoff - 120 * 24 * 60 * 60_000)
+      sqlite.prepare('INSERT INTO share_visits (share_id, visit_id, visitor_hash, viewed_at) VALUES (?, ?, ?, ?)')
+        .run(id, freshVisit, newVisitor, cutoff - 10 * 24 * 60 * 60_000)
+      await (await import('../src/worker/share-cleanup')).cleanupExpiredShares(env.DB, cutoff)
+      expect(sqlite.prepare('SELECT token_hash FROM sessions WHERE token_hash = ?').get('expired-session')).toBeUndefined()
+      expect(sqlite.prepare('SELECT token_hash FROM sessions WHERE token_hash = ?').get('live-session')).toBeDefined()
+      expect(sqlite.prepare('SELECT key FROM rate_limits WHERE key = ?').get('expired-lock')).toBeUndefined()
+      expect(sqlite.prepare('SELECT key FROM rate_limits WHERE key = ?').get('live-lock')).toBeDefined()
+      expect(sqlite.prepare('SELECT visit_id FROM share_visits WHERE visit_id = ?').get(staleVisit)).toBeUndefined()
+      expect(sqlite.prepare('SELECT visit_id FROM share_visits WHERE visit_id = ?').get(freshVisit)).toBeDefined()
+      expect(sqlite.prepare('SELECT visitor_hash FROM share_unique_visitors WHERE visitor_hash = ?').get(oldVisitor)).toBeUndefined()
+      expect(sqlite.prepare('SELECT visitor_hash FROM share_unique_visitors WHERE visitor_hash = ?').get(newVisitor)).toBeDefined()
+      expect(sqlite.prepare('SELECT view_count FROM share_stats WHERE share_id = ?').get(id).view_count).toBe(2)
+    } finally { sqlite.close() }
+  })
+
+  it('exposes liveness separately from database/config readiness', async () => {
+    const { env } = database()
+    expect((await app.request(origin + '/api/health/live', {}, env)).status).toBe(200)
+    expect((await app.request(origin + '/api/health/ready', {}, env)).status).toBe(200)
+    const broken = { ...env, DATA_ENCRYPTION_KEY: 'invalid' }
+    const response = await app.request(origin + '/api/health/ready', {}, broken)
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ ok: false })
+  })
+
   it('creates a short ID-only URL with no bearer-token fragment', async () => {
     const { sqlite, env } = database()
     try {
@@ -365,6 +479,7 @@ describe('share migration and brute-force protection', () => {
       sqlite.exec(migrate)
       sqlite.exec(groupMigration)
       sqlite.exec(visitorMigration)
+      sqlite.exec(analyticsMigration)
       const login = await post(env, '/api/admin/login', { password: adminPassword })
       expect(login.status).toBe(200)
       const cookie = login.headers.get('set-cookie')?.split(';')[0]

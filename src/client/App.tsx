@@ -20,6 +20,11 @@ type Share = {
   note: string; expiresAt: number | null; revokedAt: number | null; createdAt: number;
   viewCount: number; uniqueVisitors: number
 }
+type ShareHistory = {
+  id: string; issuer: string; account: string; publicLabel: string; note: string;
+  expiresAt: number | null; createdAt: number; endedAt: number;
+  reason: 'revoked' | 'expired' | 'entry_deleted'; viewCount: number; uniqueVisitors: number
+}
 const emptyDraft: EntryDraft = { issuer: '', account: '', secret: '', algorithm: 'SHA1', digits: 6, period: 30 }
 
 function message(error: unknown): string {
@@ -142,8 +147,14 @@ function SharePage({ id }: { id: string }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [locked, setLocked] = useState(false)
+  const [lockRemaining, setLockRemaining] = useState(0)
   const [unavailable, setUnavailable] = useState(false)
+  const isLocked = lockRemaining > 0
+  useEffect(() => {
+    if (!isLocked) return
+    const timer = window.setInterval(() => setLockRemaining((remaining) => Math.max(0, remaining - 1)), 1000)
+    return () => window.clearInterval(timer)
+  }, [isLocked])
 
   const onFeedError = useCallback((failure: ApiFailure) => {
     if (failure.code === 'PASSWORD_REQUIRED') {
@@ -167,7 +178,7 @@ function SharePage({ id }: { id: string }) {
       setPasswordRequired(false)
       setPassword('')
     } catch (cause) {
-      if (cause instanceof ApiFailure && cause.code === 'LOCKED') setLocked(true)
+      if (cause instanceof ApiFailure && cause.code === 'LOCKED') setLockRemaining(cause.retryAfterSeconds ?? 60)
       setError(message(cause))
     } finally { setBusy(false) }
   }
@@ -196,8 +207,8 @@ function SharePage({ id }: { id: string }) {
         <input id="share-password-input" autoFocus type="password" autoComplete="off" value={password}
           onChange={(event) => { setPassword(event.target.value); setError('') }}
           required placeholder="Enter the password" />
-        <button type="submit" className="primary" disabled={busy || locked || !password}>
-          {busy ? 'Checking...' : locked ? 'Try again later' : 'View code'}
+        <button type="submit" className="primary" disabled={busy || isLocked || !password}>
+          {busy ? 'Checking...' : isLocked ? `Try again in ${lockRemaining}s` : 'View code'}
         </button>
         {error && <p className="message error" role="alert">{error}</p>}
       </form> : <CodePanel endpoint={'/api/share/' + id} unlock={unlock || undefined}
@@ -414,6 +425,7 @@ function ShareCreator({ entry, onCreated, onCancel }: {
   const [password, setPassword] = useState('')
   const [hours, setHours] = useState(24)
   const [note, setNote] = useState('')
+  const [publicLabel, setPublicLabel] = useState('')
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -430,7 +442,7 @@ function ShareCreator({ entry, onCreated, onCancel }: {
     try {
       const result = await request<{ id: string; url: string }>('/api/admin/shares', {
         method: 'POST', body: {
-          entryId: entry.id, note, expiresInHours: hours,
+          entryId: entry.id, note, publicLabel, expiresInHours: hours,
           ...(protectedMode ? { password } : {})
         }
       })
@@ -484,7 +496,11 @@ function ShareCreator({ entry, onCreated, onCancel }: {
         <option value={0}>Until I stop sharing</option>
       </select>
       {hours === 0 && <p className="muted small">This link won't expire on its own. You can stop sharing it at any time.</p>}
-      <label htmlFor="share-note">Note to yourself (optional)</label>
+      <label htmlFor="share-public-label">Label shown to the recipient (optional)</label>
+      <input id="share-public-label" value={publicLabel} maxLength={80}
+        onChange={(e) => setPublicLabel(e.target.value)} placeholder="e.g. Cloudflare deployment account" />
+      <p className="muted small">This label is visible on the shared-code page. Avoid personal or sensitive details.</p>
+      <label htmlFor="share-note">Private note (only you can see it)</label>
       <input id="share-note" value={note} maxLength={120} onChange={(e) => setNote(e.target.value)}
         placeholder="e.g. Shared with a teammate" />
       <div className="editor-actions"><button type="button" onClick={onCancel}>Cancel</button>
@@ -502,6 +518,8 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
 }) {
   const [entries, setEntries] = useState<Entry[]>([])
   const [shares, setShares] = useState<Share[]>([])
+  const [shareHistory, setShareHistory] = useState<ShareHistory[]>([])
+  const [shareView, setShareView] = useState<'active' | 'history'>('active')
   const [groups, setGroups] = useState<Group[]>([])
   const [groupFilter, setGroupFilter] = useState<GroupFilter>('all')
   const [movingGroup, setMovingGroup] = useState(false)
@@ -530,6 +548,12 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
       setShares(result.shares)
     } catch (cause) { setError(message(cause)) }
   }, [])
+  const reloadHistory = useCallback(async () => {
+    try {
+      const result = await request<{ history: ShareHistory[] }>('/api/admin/share-history')
+      setShareHistory(result.history)
+    } catch (cause) { setError(message(cause)) }
+  }, [])
   const reloadGroups = useCallback(async () => {
     try {
       const result = await request<{ groups: Group[] }>('/api/admin/groups')
@@ -538,9 +562,9 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
   }, [])
   const reload = useCallback(async () => {
     setError('')
-    await Promise.all([reloadEntries(), reloadShares(), reloadGroups()])
+    await Promise.all([reloadEntries(), reloadShares(), reloadGroups(), reloadHistory()])
     setLoading(false)
-  }, [reloadEntries, reloadShares, reloadGroups])
+  }, [reloadEntries, reloadShares, reloadGroups, reloadHistory])
   useEffect(() => { void reload() }, [reload])
   const groupEntries = useMemo(() => entriesInGroup(entries, groupFilter), [entries, groupFilter])
   const filtered = useMemo(() => visibleEntries(groupEntries, search), [groupEntries, search])
@@ -595,7 +619,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
     if (!window.confirm("Stop sharing this code? People won't be able to get new codes from this link. A code already copied may still work until it changes.")) return
     try {
       await request('/api/admin/shares/' + id, { method: 'DELETE' })
-      await reloadShares()
+      await Promise.all([reloadShares(), reloadHistory()])
     } catch (cause) { setError(message(cause)) }
   }
   const copyLink = async (id: string) => {
@@ -628,6 +652,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
     setSearch('')
     if (tab === 'shares') setGroupFilter('all')
     setTab('entries')
+    setShareView('active')
     setSharing(false)
     setEditor(null)
     // Sharing is account-specific. Never silently choose a previously selected code.
@@ -653,7 +678,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
           </button>
           <button type="button" className={'sidebar-link ' + (tab === 'shares' ? 'active' : '')}
             aria-current={tab === 'shares' ? 'page' : undefined}
-            onClick={() => { setTab('shares'); setChoosingShare(false) }}>
+            onClick={() => { setTab('shares'); setShareView('active'); setChoosingShare(false) }}>
             <span className="sidebar-icon" aria-hidden="true">↗</span> Share links
             <span className="sidebar-count">{activeShares.length}</span>
           </button>
@@ -716,7 +741,7 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
           <button id="tab-shares" role="tab" aria-controls="panel-shares" aria-selected={tab === 'shares'}
             tabIndex={tab === 'shares' ? 0 : -1} onKeyDown={onTabKeyDown}
             className={tab === 'shares' ? 'active' : ''}
-            onClick={() => { setTab('shares'); setChoosingShare(false) }}>
+            onClick={() => { setTab('shares'); setShareView('active'); setChoosingShare(false) }}>
             Share links <span>{activeShares.length}</span>
           </button>
         </div>
@@ -848,44 +873,75 @@ function Dashboard({ onLogout, theme, onThemeToggle }: {
             </div>}
           </section>
         </div>}
-        {tab === 'shares' && <div className="card shares-list" role="tabpanel"
+        {tab === 'shares' && <section className="share-manager-panel" role="tabpanel"
           id="panel-shares" aria-labelledby="tab-shares" tabIndex={0}>
-          {shares.length === 0 && <div className="empty-state">
-            <span className="empty-symbol" aria-hidden="true">↗</span>
-            <h2>{loading ? 'Loading share links...' : "You haven't shared any codes yet"}</h2>
-            {!loading && <>
-              <p className="muted">Choose an account first, then decide how long to share its code.</p>
-              <button type="button" className="primary" onClick={startNew}>
-                {entries.length ? 'Create a share link' : 'Add a code'}
-              </button>
-            </>}
-          </div>}
-          {shares.map((share) => {
-            const revoked = share.revokedAt !== null
-            const expired = share.expiresAt !== null && share.expiresAt < Date.now()
-            return <div className="share-row" key={share.id}>
+          <div className="share-view-switch" role="group" aria-label="Share link views">
+            <button type="button" aria-pressed={shareView === 'active'}
+              className={shareView === 'active' ? 'selected' : ''}
+              onClick={() => setShareView('active')}>Active links <span>{shares.length}</span></button>
+            <button type="button" aria-pressed={shareView === 'history'}
+              className={shareView === 'history' ? 'selected' : ''}
+              onClick={() => setShareView('history')}>History <span>{shareHistory.length}</span></button>
+          </div>
+          {shareView === 'active' ? <div className="card shares-list">
+            {shares.length === 0 && <div className="empty-state">
+              <span className="empty-symbol" aria-hidden="true">↗</span>
+              <h2>{loading ? 'Loading share links...' : "You haven't shared any codes yet"}</h2>
+              {!loading && <>
+                <p className="muted">Choose an account first, then decide how long to share its code.</p>
+                <button type="button" className="primary" onClick={startNew}>
+                  {entries.length ? 'Create a share link' : 'Add a code'}
+                </button>
+              </>}
+            </div>}
+            {shares.map((share) => {
+              const revoked = share.revokedAt !== null
+              const expired = share.expiresAt !== null && share.expiresAt < Date.now()
+              return <div className="share-row" key={share.id}>
+                <div className="share-info">
+                  <span className="share-icon" aria-hidden="true">↗</span>
+                  <div><strong>{share.issuer || 'Unnamed'}</strong><span className="muted small share-account">{share.account}</span>
+                    {share.publicLabel && <span className="muted small">Recipient label: {share.publicLabel}</span>}
+                    <span className="muted small">{share.protected ? 'Password required' : 'Anyone with the link'}
+                      {share.note ? ' · ' + share.note : ''} · {share.expiresAt !== null
+                        ? 'Expires ' + formattedDate(share.expiresAt) : 'Does not expire'}</span>
+                    <span className="share-views" title="Views are lifetime successful page views. UV estimates unique browsers in the last 90 days.">
+                      <span>Views: {share.viewCount}</span><span aria-hidden="true">·</span>
+                      <span><abbr title="Unique browsers in the last 90 days">UV (90d)</abbr>: {share.uniqueVisitors}</span>
+                    </span></div>
+                </div>
+                <div className="share-actions">
+                  <span className={'status ' + (revoked || expired ? 'danger' : 'success')}>
+                    {revoked ? 'Stopped' : expired ? 'Expired' : 'Active'}</span>
+                  {!revoked && !expired && <button type="button" onClick={() => void copyLink(share.id)}>Copy link</button>}
+                  {!revoked && <button type="button" className="danger-button" onClick={() => void revoke(share.id)}>Stop sharing</button>}
+                </div>
+              </div>
+            })}
+          </div> : <div className="card shares-list">
+            {shareHistory.length === 0 ? <div className="empty-state">
+              <span className="empty-symbol" aria-hidden="true">◷</span>
+              <h2>No share history yet</h2>
+              <p className="muted">Revoked, expired, and deleted-account links will appear here.</p>
+            </div> : shareHistory.map((item) => <div className="share-row" key={item.id}>
               <div className="share-info">
                 <span className="share-icon" aria-hidden="true">↗</span>
-                <div><strong>{share.issuer || 'Unnamed'}</strong><span className="muted small share-account">{share.account}</span>
-                  <span className="muted small">{share.protected ? 'Password required' : 'Anyone with the link'}
-                    {share.note ? ' · ' + share.note : ''} · {share.expiresAt !== null
-                      ? 'Expires ' + formattedDate(share.expiresAt) : 'Does not expire'}</span>
-                  <span className="share-views"
-                    title="Views count successful code views. UV estimates unique browsers; it starts counting when UV tracking is enabled.">
-                    <span>Views: {share.viewCount}</span>
-                    <span aria-hidden="true">·</span>
-                    <span><abbr title="Unique visitors (estimated by browser)">UV</abbr>: {share.uniqueVisitors}</span>
+                <div><strong>{item.issuer || 'Unnamed'}</strong>
+                  <span className="muted small share-account">{item.account}</span>
+                  {item.publicLabel && <span className="muted small">Recipient label: {item.publicLabel}</span>}
+                  <span className="muted small">{item.reason === 'revoked' ? 'Stopped sharing'
+                    : item.reason === 'expired' ? 'Expired' : 'Account deleted'} · Ended {formattedDate(item.endedAt)}</span>
+                  <span className="share-views">
+                    <span>Views: {item.viewCount}</span><span aria-hidden="true">·</span>
+                    <span><abbr title="Unique browsers during the final 90 days">UV (90d)</abbr>: {item.uniqueVisitors}</span>
                   </span></div>
               </div>
-              <div className="share-actions">
-                <span className={'status ' + (revoked || expired ? 'danger' : 'success')}>
-                  {revoked ? 'Stopped' : expired ? 'Expired' : 'Active'}</span>
-                {!revoked && !expired && <button type="button" onClick={() => void copyLink(share.id)}>Copy link</button>}
-                {!revoked && <button type="button" className="danger-button" onClick={() => void revoke(share.id)}>Stop sharing</button>}
-              </div>
-            </div>
-          })}
-        </div>}
+              <div className="share-actions"><span className="status danger">
+                {item.reason === 'revoked' ? 'Stopped' : item.reason === 'expired' ? 'Expired' : 'Deleted'}
+              </span></div>
+            </div>)}
+          </div>}
+        </section>}
       </main>
     </div>
   </div>
