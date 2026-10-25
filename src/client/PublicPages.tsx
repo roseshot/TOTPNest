@@ -3,7 +3,7 @@ import { ApiFailure, request } from './api'
 import { CodePanel } from './CodePanel'
 import { Brand } from './Brand'
 import { readableError } from './messages'
-import { sharePathForId } from './routes'
+import { parseShareInput, sharePathForId } from './routes'
 
 /** Public screens are intentionally separate from the administrator navigation. */
 function PublicFrame({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -46,12 +46,12 @@ export function ShareIdHome() {
       <form className="public-form" onSubmit={openShare}>
         <label htmlFor="share-id-input">Share ID</label>
         <input id="share-id-input" name="shareId" type="text" autoComplete="off"
-          autoCapitalize="none" spellCheck={false} maxLength={32} value={shareId}
-          placeholder="Enter your Share ID"
+          autoCapitalize="none" spellCheck={false} maxLength={2048} value={shareId}
+          placeholder="Enter a Share ID or paste a share link"
           aria-invalid={Boolean(error)}
           aria-describedby={error ? 'share-id-help share-id-error' : 'share-id-help'}
-          onChange={(event) => { setShareId(event.target.value); setError('') }} />
-        <p className="muted small" id="share-id-help">Copy the ID exactly as it appears, including capital letters.</p>
+          onChange={(event) => { const value = event.target.value; setShareId(parseShareInput(value) ?? value); setError('') }} />
+        <p className="muted small" id="share-id-help">Paste a Share ID or share link. IDs are case-sensitive.</p>
         {error && <p className="message error" role="alert" id="share-id-error">{error}</p>}
         <button className="primary" type="submit" disabled={!shareId.trim()}>
           View shared code <span aria-hidden="true">→</span>
