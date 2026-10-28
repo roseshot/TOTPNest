@@ -8,6 +8,7 @@
   "preview_urls": false,
   "observability": {
     "enabled": true,
+    "redact_query_string": true,
     "head_sampling_rate": 1,
     "issues": {
       "enabled": true

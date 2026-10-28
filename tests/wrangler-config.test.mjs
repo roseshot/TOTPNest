@@ -58,6 +58,7 @@ describe('D1 build-variable configuration', () => {
     expect(generated.preview_urls).toBe(false)
     expect(generated.observability).toEqual({
       enabled: true,
+      redact_query_string: true,
       head_sampling_rate: 1,
       issues: { enabled: true }
     })
