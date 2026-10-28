@@ -3,6 +3,13 @@
   "name": "totpnest",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-10-20",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "issues": {
+      "enabled": true
+    }
+  },
   "secrets": {
     "required": ["ADMIN_PASSWORD", "DATA_ENCRYPTION_KEY"]
   },
