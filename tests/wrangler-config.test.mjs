@@ -67,12 +67,13 @@ describe('D1 build-variable configuration', () => {
     const commented = template.replace(
       '"preview_urls": false,',
       '"preview_urls": false, /* keep preview URLs off */'
-    ).replace(
-      '"issues": {\\n      "enabled": true\\n    }',
-      '"issues": {\\n      "enabled": true,\\n    }'
     )
-    expect(commented).not.toBe(template)
-    const rendered = renderWranglerConfig(commented, vars)
+    const trailing = commented.replace(
+      /("issues":\s*\{\s*"enabled": true)(\s*\})/,
+      '$1,$2'
+    )
+    expect(trailing).not.toBe(commented)
+    const rendered = renderWranglerConfig(trailing, vars)
     expect(JSON.parse(rendered).preview_urls).toBe(false)
     expect(rendered).not.toContain('keep preview URLs off')
   })
