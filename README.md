@@ -148,6 +148,12 @@ For a working instance, create or select your D1 database, set `D1_DATABASE_NAME
 - Cloudflare D1 (SQLite) with optional global read replication and Sessions API bookmarks
 - Workers Static Assets for the SPA and security headers
 
+## Dependabot auto-merge
+
+Dependabot updates npm and GitHub Actions dependencies on its configured weekly schedule. All Dependabot PRs are squash-merged when their pull-request `CI` workflow succeeds, regardless of version or update type, including major, minor, patch, and prerelease releases. No manual opt-in or update-type filter is required.
+
+The [Dependabot auto-merge workflow](.github/workflows/dependabot-auto-merge.yml) verifies that the successful CI run tested the PR's current head SHA and that the PR is authored by `dependabot[bot]`. Failed or cancelled CI cannot trigger a merge. Merge conflicts and enforced GitHub repository rules can still prevent merging.
+
 ## Dependency versions
 
 Dependencies are pinned to the current stable releases as of October 23, 2026, including React 19.3.1, Hono 4.13.13, Vite 8.3.5, Vitest 5.0.5, TypeScript 7.0.2 and Wrangler 4.151.3. See `package.json` for the full version list.
