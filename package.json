@@ -23,21 +23,21 @@
     "test:e2e": "npm run build && playwright test"
   },
   "dependencies": {
-    "hono": "4.13.18",
+    "hono": "4.13.19",
     "jsqr": "1.4.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261113.1",
+    "@cloudflare/workers-types": "5.20261120.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
     "typescript": "7.1.0-dev.20261112.1",
     "vite": "8.3.8",
-    "vitest": "5.1.0",
-    "wrangler": "4.161.0",
-    "@playwright/test": "1.65.0",
+    "vitest": "5.1.1",
+    "wrangler": "4.165.0",
+    "@playwright/test": "1.65.1",
     "jsonc-parser": "3.3.1"
   }
 }
